@@ -28,7 +28,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>travel-translator</string>
-				<string>com.theluxenomad.traveltranslator</string>
+				<string>com.kelvin.freeofflinetranslator</string>
 			</array>
 		</dict>
 	</array>

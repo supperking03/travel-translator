@@ -349,7 +349,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = TravelTranslator/TravelTranslator.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = TDE9A9EHZ7;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -369,7 +369,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.theluxenomad.traveltranslator;
+				PRODUCT_BUNDLE_IDENTIFIER = com.theluxenomad.freeofflinetranslator;
 				PRODUCT_NAME = TravelTranslator;
 				SWIFT_OBJC_BRIDGING_HEADER = "TravelTranslator/TravelTranslator-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -386,7 +386,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = TravelTranslator/TravelTranslator.entitlements;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = TDE9A9EHZ7;
 				INFOPLIST_FILE = TravelTranslator/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
@@ -401,7 +401,7 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.theluxenomad.traveltranslator;
+				PRODUCT_BUNDLE_IDENTIFIER = com.theluxenomad.freeofflinetranslator;
 				PRODUCT_NAME = TravelTranslator;
 				SWIFT_OBJC_BRIDGING_HEADER = "TravelTranslator/TravelTranslator-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
