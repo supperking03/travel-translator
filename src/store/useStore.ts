@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DEFAULT_SOURCE, DEFAULT_TARGET } from '@/constants/languages';
 
 export type ModelStatus = 'not_downloaded' | 'downloading' | 'loading' | 'ready' | 'error';
@@ -42,49 +44,74 @@ interface TranslatorState {
   history: HistoryEntry[];
   addHistory: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void;
   clearHistory: () => void;
+
+  // Onboarding
+  onboardingComplete: boolean;
+  setOnboardingComplete: (v: boolean) => void;
+
+  // App language (i18n)
+  appLanguage: string;
+  setAppLanguage: (lang: string) => void;
 }
 
-export const useStore = create<TranslatorState>((set, get) => ({
-  sourceLang: DEFAULT_SOURCE,
-  targetLang: DEFAULT_TARGET,
-  setSourceLang: (lang) => set({ sourceLang: lang }),
-  setTargetLang: (lang) => set({ targetLang: lang }),
-  swapLanguages: () => {
-    const { sourceLang, targetLang, sourceText, translatedText } = get();
-    set({
-      sourceLang: targetLang,
-      targetLang: sourceLang,
-      sourceText: translatedText,
-      translatedText: sourceText,
-    });
-  },
+export const useStore = create<TranslatorState>()(
+  persist(
+    (set, get) => ({
+      sourceLang: DEFAULT_SOURCE,
+      targetLang: DEFAULT_TARGET,
+      setSourceLang: (lang) => set({ sourceLang: lang }),
+      setTargetLang: (lang) => set({ targetLang: lang }),
+      swapLanguages: () => {
+        const { sourceLang, targetLang, sourceText, translatedText } = get();
+        set({
+          sourceLang: targetLang,
+          targetLang: sourceLang,
+          sourceText: translatedText,
+          translatedText: sourceText,
+        });
+      },
 
-  sourceText: '',
-  translatedText: '',
-  setSourceText: (text) => set({ sourceText: text, translatedText: '' }),
-  setTranslatedText: (text) => set({ translatedText: text }),
+      sourceText: '',
+      translatedText: '',
+      setSourceText: (text) => set({ sourceText: text, translatedText: '' }),
+      setTranslatedText: (text) => set({ translatedText: text }),
 
-  isTranslating: false,
-  setIsTranslating: (v) => set({ isTranslating: v }),
+      isTranslating: false,
+      setIsTranslating: (v) => set({ isTranslating: v }),
 
-  modelStatus: 'not_downloaded',
-  downloadProgress: 0,
-  modelError: null,
-  setModelStatus: (status) => set({ modelStatus: status }),
-  setDownloadProgress: (progress) => set({ downloadProgress: progress }),
-  setModelError: (error) => set({ modelError: error }),
+      modelStatus: 'not_downloaded',
+      downloadProgress: 0,
+      modelError: null,
+      setModelStatus: (status) => set({ modelStatus: status }),
+      setDownloadProgress: (progress) => set({ downloadProgress: progress }),
+      setModelError: (error) => set({ modelError: error }),
 
-  history: [],
-  addHistory: (entry) =>
-    set((state) => ({
-      history: [
-        {
-          ...entry,
-          id: Date.now().toString(),
-          timestamp: Date.now(),
-        },
-        ...state.history.slice(0, 49), // keep last 50
-      ],
-    })),
-  clearHistory: () => set({ history: [] }),
-}));
+      history: [],
+      addHistory: (entry) =>
+        set((state) => ({
+          history: [
+            { ...entry, id: Date.now().toString(), timestamp: Date.now() },
+            ...state.history.slice(0, 49),
+          ],
+        })),
+      clearHistory: () => set({ history: [] }),
+
+      onboardingComplete: false,
+      setOnboardingComplete: (v) => set({ onboardingComplete: v }),
+
+      appLanguage: 'en',
+      setAppLanguage: (lang) => set({ appLanguage: lang }),
+    }),
+    {
+      name: 'travel-translator-store',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        onboardingComplete: state.onboardingComplete,
+        appLanguage:        state.appLanguage,
+        sourceLang:         state.sourceLang,
+        targetLang:         state.targetLang,
+        history:            state.history,
+      }),
+    }
+  )
+);

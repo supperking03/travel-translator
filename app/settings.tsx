@@ -6,47 +6,37 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useStore } from '@/store/useStore';
 import { useLlama } from '@/hooks/useLlama';
 import { getModelFileSizeMB, deleteModel } from '@/utils/modelManager';
 import { MODEL_SIZE_MB } from '@/constants/model';
-import { useTheme } from '@/constants/theme';
-
-function cardShadow(isDark: boolean) {
-  if (isDark) return {};
-  return {
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  };
-}
+import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem';
+import { useI18n } from '@/i18n/useI18n';
 
 // ─── Status card ──────────────────────────────────────────────────────────────
 function PackStatusCard({
   isReady, isDownloading, isLoading,
-  downloadProgress, isDark,
-  colors,
+  downloadProgress, isDark, colors,
 }: {
   isReady: boolean; isDownloading: boolean; isLoading: boolean;
-  downloadProgress: number; isDark: boolean;
-  colors: ReturnType<typeof useTheme>;
+  downloadProgress: number; isDark: boolean; colors: DSColors;
 }) {
-  const statusColor = isReady       ? colors.secondary
+  const t = useI18n();
+
+  const statusColor = isReady       ? colors.success
                     : isDownloading ? colors.primary
                     : isLoading     ? colors.primary
                     :                 colors.warning;
 
-  const statusLabel = isReady       ? 'Ready'
+  const statusLabel = isReady       ? t.sStatusReady
                     : isDownloading ? `${Math.round(downloadProgress * 100)}%`
-                    : isLoading     ? 'Loading…'
-                    :                 'Not installed';
+                    : isLoading     ? t.sStatusLoading
+                    :                 t.sStatusNotInstalled;
 
   const iconName: React.ComponentProps<typeof Ionicons>['name'] =
     isReady       ? 'checkmark-circle-outline'
@@ -55,14 +45,14 @@ function PackStatusCard({
     :               'cloud-outline';
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }, cardShadow(isDark)]}>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, DS.shadow.level2(isDark)]}>
       <View style={styles.cardHeader}>
         <View style={[styles.cardIcon, { backgroundColor: `${statusColor}18` }]}>
           <Ionicons name={iconName} size={26} color={statusColor} />
         </View>
         <View style={styles.cardMeta}>
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Offline Translation Pack</Text>
-          <Text style={[styles.cardSub, { color: colors.textMuted }]}>Works without internet · 33 languages</Text>
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t.sPackTitle}</Text>
+          <Text style={[styles.cardSub, { color: colors.textMuted }]}>{t.sPackSub}</Text>
         </View>
         <View style={[styles.statusPill, { backgroundColor: `${statusColor}18` }]}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -70,7 +60,6 @@ function PackStatusCard({
         </View>
       </View>
 
-      {/* Download progress */}
       {isDownloading && (
         <>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -78,7 +67,7 @@ function PackStatusCard({
             <View style={styles.progressLabelRow}>
               <Ionicons name="cloud-download-outline" size={13} color={colors.primary} />
               <Text style={[styles.progressText, { color: colors.textMuted }]}>
-                {`${Math.round(downloadProgress * MODEL_SIZE_MB)} MB of ${MODEL_SIZE_MB} MB`}
+                {`${Math.round(downloadProgress * MODEL_SIZE_MB)} MB / ${MODEL_SIZE_MB} MB`}
               </Text>
               <Text style={[styles.progressPct, { color: colors.primary }]}>
                 {Math.round(downloadProgress * 100)}%
@@ -109,17 +98,17 @@ function ActionRow({
   onPress: () => void;
   variant?: 'default' | 'danger';
   isDark: boolean;
-  colors: ReturnType<typeof useTheme>;
+  colors: DSColors;
 }) {
-  const fg     = variant === 'danger' ? colors.error   : colors.text;
-  const iconBg = variant === 'danger' ? colors.errorDim : colors.surface;
-  const iconFg = variant === 'danger' ? colors.error   : colors.primary;
+  const fg     = variant === 'danger' ? colors.danger     : colors.textPrimary;
+  const iconBg = variant === 'danger' ? colors.dangerSoft : colors.surface;
+  const iconFg = variant === 'danger' ? colors.danger     : colors.primary;
 
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
-      style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }, cardShadow(isDark)]}
+      style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }, DS.shadow.level2(isDark)]}
     >
       <View style={[styles.rowIcon, { backgroundColor: iconBg }]}>
         <Ionicons name={icon} size={18} color={iconFg} />
@@ -137,14 +126,20 @@ function ActionRow({
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
-  const colors = useTheme();
-  const scheme = useColorScheme();
-  const isDark  = scheme !== 'light';
+  const C      = useDSColors();
+  const isDark = useDSIsDark();
+  const t      = useI18n();
+  const nav    = useNavigation();
 
-  const { modelStatus, downloadProgress, modelError, clearHistory } = useStore();
+  const { modelStatus, downloadProgress, clearHistory } = useStore();
   const { downloadAndLoad, cancelDownload, releaseModel } = useLlama();
 
   const [savedSizeMB, setSavedSizeMB] = useState<number | null>(null);
+
+  // Localize the navigation header title
+  useEffect(() => {
+    nav.setOptions({ title: t.sTitle });
+  }, [t.sTitle, nav]);
 
   useEffect(() => {
     getModelFileSizeMB().then(setSavedSizeMB);
@@ -158,22 +153,22 @@ export default function SettingsScreen() {
 
   const handleDownload = () =>
     Alert.alert(
-      'Download Language Pack',
-      `This will download ~${MODEL_SIZE_MB} MB. Best done on Wi-Fi.`,
+      t.sDownloadPack,
+      `~${MODEL_SIZE_MB} MB. ${t.sDownloadPackDesc.split('·')[1]?.trim() ?? ''}`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Download', onPress: downloadAndLoad },
+        { text: t.aCancel, style: 'cancel' },
+        { text: t.aDownload, onPress: downloadAndLoad },
       ]
     );
 
   const handleRedownload = () =>
     Alert.alert(
-      'Re-download Pack',
-      `This will re-download the full pack (~${MODEL_SIZE_MB} MB). Best done on Wi-Fi.`,
+      t.sRedownload,
+      `~${MODEL_SIZE_MB} MB`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t.aCancel, style: 'cancel' },
         {
-          text: 'Re-download',
+          text: t.aDownload,
           onPress: async () => {
             await releaseModel();
             await deleteModel();
@@ -185,12 +180,12 @@ export default function SettingsScreen() {
 
   const handleDelete = () =>
     Alert.alert(
-      'Delete Pack',
-      "This removes the offline pack from your device. You'll need to re-download it to translate.",
+      t.sDeletePack,
+      t.sDeletePackDesc,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t.aCancel, style: 'cancel' },
         {
-          text: 'Delete',
+          text: t.aDelete,
           style: 'destructive',
           onPress: async () => {
             await releaseModel();
@@ -202,131 +197,122 @@ export default function SettingsScreen() {
     );
 
   const handleClearHistory = () =>
-    Alert.alert('Clear History', 'Delete all translation history?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: clearHistory },
+    Alert.alert(t.sClearHistory, '', [
+      { text: t.aCancel, style: 'cancel' },
+      { text: t.aClear, style: 'destructive', onPress: clearHistory },
     ]);
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: C.background }]} edges={['bottom']}>
       <ScrollView
         style={styles.flex}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
 
-        {/* ── Status card ────────────────────────────────────────────────── */}
         <PackStatusCard
           isReady={isReady}
           isDownloading={isDownloading}
           isLoading={isLoading}
           downloadProgress={downloadProgress}
           isDark={isDark}
-          colors={colors}
+          colors={C}
         />
 
-        {/* ── Error banner ───────────────────────────────────────────────── */}
         {hasError && (
-          <View style={[styles.errorCard, { backgroundColor: colors.errorDim, borderColor: `${colors.error}35` }]}>
-            <View style={[styles.errorIcon, { backgroundColor: `${colors.error}18` }]}>
-              <Ionicons name="alert-circle-outline" size={20} color={colors.error} />
+          <View style={[styles.errorCard, { backgroundColor: C.dangerSoft, borderColor: `${C.danger}35` }]}>
+            <View style={[styles.errorIcon, { backgroundColor: `${C.danger}18` }]}>
+              <Ionicons name="alert-circle-outline" size={20} color={C.danger} />
             </View>
             <View style={styles.errorText}>
-              <Text style={[styles.errorTitle, { color: colors.error }]}>Something went wrong</Text>
-              <Text style={[styles.errorDesc, { color: colors.textSecondary }]}>
-                Try deleting and re-downloading the pack.
-              </Text>
+              <Text style={[styles.errorTitle, { color: C.danger }]}>{t.sErrorTitle}</Text>
+              <Text style={[styles.errorDesc, { color: C.textSecondary }]}>{t.sErrorDesc}</Text>
             </View>
           </View>
         )}
 
-        {/* ── Pack actions ───────────────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>LANGUAGE PACK</Text>
+          <Text style={[styles.sectionLabel, { color: C.textMuted }]}>{t.sSectionPack}</Text>
           <View style={styles.rowGroup}>
 
             {(notDownloaded || hasError) && (
               <ActionRow
                 icon="cloud-download-outline"
-                label="Download Pack"
-                description={`~${MODEL_SIZE_MB} MB · Recommended on Wi-Fi`}
+                label={t.sDownloadPack}
+                description={t.sDownloadPackDesc}
                 onPress={handleDownload}
                 isDark={isDark}
-                colors={colors}
+                colors={C}
               />
             )}
 
             {isDownloading && (
               <ActionRow
                 icon="close-circle-outline"
-                label="Cancel Download"
+                label={t.sCancelDownload}
                 variant="danger"
                 onPress={cancelDownload}
                 isDark={isDark}
-                colors={colors}
+                colors={C}
               />
             )}
 
             {isReady && !isDownloading && (
               <ActionRow
                 icon="refresh-outline"
-                label="Check for Updates"
-                description="Make sure you have the latest version"
-                onPress={() => Alert.alert('Up to Date', 'Your offline pack is already the latest version.')}
+                label={t.sCheckUpdates}
+                description={t.sCheckUpdatesDesc}
+                onPress={() => Alert.alert(t.sCheckUpdates, t.sStatusReady)}
                 isDark={isDark}
-                colors={colors}
+                colors={C}
               />
             )}
 
             {(isReady || savedSizeMB !== null) && !isDownloading && !isLoading && (
               <ActionRow
                 icon="arrow-down-circle-outline"
-                label="Re-download Pack"
-                description="Replace with a fresh copy"
+                label={t.sRedownload}
+                description={t.sRedownloadDesc}
                 onPress={handleRedownload}
                 isDark={isDark}
-                colors={colors}
+                colors={C}
               />
             )}
 
             {(isReady || savedSizeMB !== null) && !isDownloading && !isLoading && (
               <ActionRow
                 icon="trash-outline"
-                label="Delete Pack"
-                description="Frees ~1.1 GB on your device"
+                label={t.sDeletePack}
+                description={t.sDeletePackDesc}
                 variant="danger"
                 onPress={handleDelete}
                 isDark={isDark}
-                colors={colors}
+                colors={C}
               />
             )}
           </View>
         </View>
 
-        {/* ── Privacy banner ─────────────────────────────────────────────── */}
-        <View style={[styles.privacyCard, { backgroundColor: colors.secondaryDim, borderColor: `${colors.secondary}28` }]}>
-          <View style={[styles.privacyIcon, { backgroundColor: `${colors.secondary}18` }]}>
-            <Ionicons name="shield-checkmark-outline" size={22} color={colors.secondary} />
+        <View style={[styles.privacyCard, { backgroundColor: C.successSoft, borderColor: `${C.success}28` }]}>
+          <View style={[styles.privacyIcon, { backgroundColor: `${C.success}18` }]}>
+            <Ionicons name="shield-checkmark-outline" size={22} color={C.success} />
           </View>
           <View style={styles.privacyText}>
-            <Text style={[styles.privacyTitle, { color: colors.text }]}>100% Private</Text>
-            <Text style={[styles.privacyDesc, { color: colors.textSecondary }]}>
-              All translations happen on your device. Nothing is ever sent to a server.
-            </Text>
+            <Text style={[styles.privacyTitle, { color: C.textPrimary }]}>{t.sPrivacyTitle}</Text>
+            <Text style={[styles.privacyDesc, { color: C.textSecondary }]}>{t.sPrivacyDesc}</Text>
           </View>
         </View>
 
-        {/* ── Data ───────────────────────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>DATA</Text>
+          <Text style={[styles.sectionLabel, { color: C.textMuted }]}>{t.sSectionData}</Text>
           <View style={styles.rowGroup}>
             <ActionRow
               icon="time-outline"
-              label="Clear Translation History"
-              description="Remove all past translations"
+              label={t.sClearHistory}
+              description={t.sClearHistoryDesc}
               onPress={handleClearHistory}
               isDark={isDark}
-              colors={colors}
+              colors={C}
             />
           </View>
         </View>
@@ -341,101 +327,95 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   safe:  { flex: 1 },
   flex:  { flex: 1 },
-  scroll: { paddingHorizontal: 16, paddingTop: 16, gap: 16 },
+  scroll: { paddingHorizontal: DS.space.md, paddingTop: DS.space.md, gap: DS.space.md },
 
-  // Status card
   card: {
-    borderRadius: 20,
+    borderRadius: DS.radius.xl,
     borderWidth: 1,
     overflow: 'hidden',
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    padding: 16,
+    gap: DS.space.sm + DS.space.xs,
+    padding: DS.space.md,
   },
   cardIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 15,
+    width: 52, height: 52,
+    borderRadius: DS.radius.md + 3,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardMeta:  { flex: 1, gap: 3 },
-  cardTitle: { fontSize: 15, fontWeight: '700' },
-  cardSub:   { fontSize: 12, lineHeight: 17 },
+  cardMeta:  { flex: 1, gap: DS.space.xs - 1 },
+  cardTitle: { ...DS.type.subhead, fontWeight: '700' },
+  cardSub:   { ...DS.type.caption1, lineHeight: 17 },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    gap: DS.space.xs + 1,
+    paddingHorizontal: DS.space.sm + DS.space.xs,
+    paddingVertical: DS.space.xs + 2,
+    borderRadius: DS.radius.full,
   },
   statusDot:  { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: 11, fontWeight: '700' },
+  statusText: { ...DS.type.caption2, fontWeight: '700' },
   divider:    { height: StyleSheet.hairlineWidth },
 
-  // Progress
-  progressWrap: { padding: 16, gap: 8 },
-  progressLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  progressText: { flex: 1, fontSize: 12 },
-  progressPct:  { fontSize: 12, fontWeight: '700' },
-  progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  progressFill:  { height: 6, borderRadius: 3 },
+  progressWrap:     { padding: DS.space.md, gap: DS.space.sm },
+  progressLabelRow: { flexDirection: 'row', alignItems: 'center', gap: DS.space.xs + 2 },
+  progressText:     { flex: 1, ...DS.type.caption1 },
+  progressPct:      { ...DS.type.caption1, fontWeight: '700' },
+  progressTrack:    { height: 6, borderRadius: 3, overflow: 'hidden' },
+  progressFill:     { height: 6, borderRadius: 3 },
 
-  // Error
   errorCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 16,
+    gap: DS.space.sm + DS.space.xs,
+    padding: DS.space.sm + DS.space.xs,
+    borderRadius: DS.radius.lg,
     borderWidth: 1,
   },
-  errorIcon:  { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  errorText:  { flex: 1, gap: 2 },
-  errorTitle: { fontSize: 13, fontWeight: '700' },
-  errorDesc:  { fontSize: 12, lineHeight: 17 },
+  errorIcon:  { width: 38, height: 38, borderRadius: DS.radius.md - 1, alignItems: 'center', justifyContent: 'center' },
+  errorText:  { flex: 1, gap: DS.space.xs - 2 },
+  errorTitle: { ...DS.type.footnote, fontWeight: '700' },
+  errorDesc:  { ...DS.type.caption1, lineHeight: 17 },
 
-  // Section
-  section:      { gap: 10 },
-  sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1.3, paddingHorizontal: 2 },
-  rowGroup:     { gap: 10 },
+  section:      { gap: DS.space.sm + DS.space.xs },
+  sectionLabel: { ...DS.type.label, letterSpacing: 1.3, paddingHorizontal: 2 },
+  rowGroup:     { gap: DS.space.sm + DS.space.xs },
 
-  // Rows
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 16,
+    gap: DS.space.sm + DS.space.xs,
+    padding: DS.space.sm + DS.space.xs,
+    borderRadius: DS.radius.lg,
     borderWidth: 1,
   },
   rowIcon: {
-    width: 40, height: 40, borderRadius: 12,
+    width: 40, height: 40,
+    borderRadius: DS.radius.md,
     alignItems: 'center', justifyContent: 'center',
   },
-  rowText:  { flex: 1, gap: 2 },
-  rowLabel: { fontSize: 15, fontWeight: '600' },
-  rowDesc:  { fontSize: 12, lineHeight: 17 },
+  rowText:  { flex: 1, gap: DS.space.xs - 2 },
+  rowLabel: { ...DS.type.subhead, fontWeight: '600' },
+  rowDesc:  { ...DS.type.caption1, lineHeight: 17 },
 
-  // Privacy
   privacyCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    padding: 16,
-    borderRadius: 18,
+    gap: DS.space.sm + DS.space.xs,
+    padding: DS.space.md,
+    borderRadius: DS.radius.xl - 2,
     borderWidth: 1,
   },
   privacyIcon: {
-    width: 46, height: 46, borderRadius: 14,
+    width: 46, height: 46, borderRadius: DS.radius.md + 2,
     alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
-  privacyText:  { flex: 1, gap: 4 },
-  privacyTitle: { fontSize: 14, fontWeight: '700' },
-  privacyDesc:  { fontSize: 13, lineHeight: 19 },
+  privacyText:  { flex: 1, gap: DS.space.xs },
+  privacyTitle: { ...DS.type.subhead, fontWeight: '700' },
+  privacyDesc:  { ...DS.type.footnote, lineHeight: 19 },
 });

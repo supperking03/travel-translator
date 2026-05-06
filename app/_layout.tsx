@@ -1,36 +1,33 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useTheme } from '@/constants/theme';
+import { useDSColors, useDSIsDark } from '@/constants/designSystem';
 
 export default function RootLayout() {
-  const colors = useTheme();
+  const C      = useDSColors();
+  const isDark = useDSIsDark();
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.text,
-          headerTitleStyle: { fontWeight: '700', fontSize: 17, color: colors.text },
-          contentStyle: { backgroundColor: colors.background },
+          headerStyle: { backgroundColor: C.background },
+          headerTintColor: C.textPrimary,
+          headerTitleStyle: { ...{ fontWeight: '700' as const, fontSize: 17 }, color: C.textPrimary },
+          contentStyle: { backgroundColor: C.background },
           headerShadowVisible: false,
           headerBackTitle: '',
         }}
       >
-        {/* Main translator — no header; custom status banner is built into the screen */}
-        <Stack.Screen
-          name="index"
-          options={{ headerShown: false }}
-        />
-        {/* Offline Language Pack — modal sheet */}
+        <Stack.Screen name="index"       options={{ headerShown: false }} />
+        <Stack.Screen name="onboarding"  options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen
           name="settings"
           options={{
             title: 'Offline Language Pack',
             presentation: 'modal',
-            headerStyle: { backgroundColor: colors.background },
+            headerStyle: { backgroundColor: C.background },
           }}
         />
       </Stack>

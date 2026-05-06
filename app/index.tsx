@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,10 +12,9 @@ import {
   Platform,
   ActivityIndicator,
   Animated,
-  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Speech from 'expo-speech';
@@ -23,19 +22,9 @@ import * as Speech from 'expo-speech';
 import { useStore } from '@/store/useStore';
 import { useLlama } from '@/hooks/useLlama';
 import { LanguageSelector } from '@/components/LanguageSelector';
-import { useTheme } from '@/constants/theme';
+import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem';
 import { getLanguageByCode } from '@/constants/languages';
-
-function cardShadow(isDark: boolean) {
-  if (isDark) return {};
-  return {
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  };
-}
+import { useI18n } from '@/i18n/useI18n';
 
 // ─── Translate button ─────────────────────────────────────────────────────────
 function TranslateButton({
@@ -44,12 +33,13 @@ function TranslateButton({
   onPress: () => void;
   disabled: boolean;
   isTranslating: boolean;
-  colors: ReturnType<typeof useTheme>;
+  colors: DSColors;
   isDark: boolean;
 }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const onIn  = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 40 }).start();
-  const onOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 20 }).start();
+  const t      = useI18n();
+  const scale  = useRef(new Animated.Value(1)).current;
+  const onIn   = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 40 }).start();
+  const onOut  = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 20 }).start();
 
   const isEmpty = disabled && !isTranslating;
 
@@ -66,33 +56,61 @@ function TranslateButton({
           styles.translateBtn,
           isEmpty
             ? { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.border }
-            : { backgroundColor: isTranslating ? colors.primaryDark : colors.primary, ...cardShadow(isDark) },
+            : {
+                backgroundColor: isTranslating ? colors.primaryDark : colors.primary,
+                ...DS.shadow.level2(isDark),
+              },
           { transform: [{ scale }] },
         ]}
       >
         {isTranslating ? (
           <>
             <ActivityIndicator color={colors.background} size="small" />
-            <Text style={[styles.translateBtnText, { color: colors.background }]}>Translating…</Text>
+            <Text style={[styles.translateBtnText, { color: colors.background }]}>{t.mTranslating}</Text>
           </>
         ) : (
           <>
             <Ionicons
               name="language"
-              size={18}
+              size={DS.icon.sm}
               color={isEmpty ? colors.textMuted : colors.background}
             />
             <Text style={[styles.translateBtnText, {
               color: isEmpty ? colors.textMuted : colors.background,
-              fontSize: isEmpty ? 14 : 16,
-              fontWeight: isEmpty ? '500' : '700',
+              ...DS.type.subhead,
+              fontWeight: isEmpty ? '400' : '700',
             }]}>
-              {isEmpty ? 'Type something to translate' : 'Translate'}
+              {isEmpty ? t.mTypePrompt : t.mTranslate}
             </Text>
           </>
         )}
       </Animated.View>
     </TouchableOpacity>
+  );
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+function EmptyState({ colors }: { colors: DSColors }) {
+  const t      = useI18n();
+  const breath = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(breath, { toValue: 0.55, duration: 2200, useNativeDriver: true }),
+        Animated.timing(breath, { toValue: 1,    duration: 2200, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [breath]);
+
+  return (
+    <Animated.View style={[styles.emptyState, { opacity: breath }]}>
+      <Text style={styles.emptyEmoji}>🌏</Text>
+      <Text style={[styles.emptyTitle, { color: colors.textMuted }]}>{t.mEmptyTitle}</Text>
+      <Text style={[styles.emptySub, { color: colors.textMuted }]}>{t.mEmptySub}</Text>
+    </Animated.View>
   );
 }
 
@@ -105,17 +123,18 @@ function TranslationResultCard({
   isSpeaking: boolean;
   onSpeak: () => void;
   onCopy: () => void;
-  colors: ReturnType<typeof useTheme>;
+  colors: DSColors;
   isDark: boolean;
 }) {
-  const lang = getLanguageByCode(targetLangCode);
+  const t        = useI18n();
+  const lang     = getLanguageByCode(targetLangCode);
   const canSpeak = !!lang?.ttsLocale;
 
   return (
     <View style={[
       styles.resultCard,
-      { backgroundColor: colors.card, borderColor: colors.primary + '35' },
-      cardShadow(isDark),
+      { backgroundColor: colors.surface, borderColor: colors.primary + '35' },
+      DS.shadow.level2(isDark),
     ]}>
       {/* Accent bar */}
       <View style={[styles.resultAccentBar, { backgroundColor: colors.primary }]} />
@@ -124,26 +143,26 @@ function TranslationResultCard({
       <View style={[styles.resultHeader, { borderBottomColor: colors.border }]}>
         <Text style={styles.resultLangFlag}>{lang?.flag ?? '🌐'}</Text>
         <View style={styles.resultHeaderMeta}>
-          <Text style={[styles.resultLangLabel, { color: colors.textMuted }]}>TRANSLATION</Text>
+          <Text style={[styles.resultLangLabel, { color: colors.textMuted }]}>{t.mTranslationLabel.toUpperCase()}</Text>
           <Text style={[styles.resultLangName, { color: colors.primary }]}>
             {lang?.name ?? 'Unknown'}
           </Text>
         </View>
       </View>
 
-      {/* Text */}
-      <Text style={[styles.resultText, { color: colors.text }]} selectable>
+      {/* Translated text */}
+      <Text style={[styles.resultText, { color: colors.textPrimary }]} selectable>
         {translatedText}
       </Text>
 
-      {/* Actions */}
+      {/* Action chips */}
       <View style={[styles.resultActions, { borderTopColor: colors.border }]}>
         {canSpeak && (
           <TouchableOpacity
             style={[
               styles.actionChip,
               {
-                backgroundColor: isSpeaking ? colors.primary : colors.primaryDim,
+                backgroundColor: isSpeaking ? colors.primary : colors.accentSoft,
                 borderWidth: 1,
                 borderColor: isSpeaking ? colors.primary : colors.primary + '28',
               },
@@ -153,11 +172,11 @@ function TranslationResultCard({
           >
             <Ionicons
               name={isSpeaking ? 'stop-circle' : 'volume-high-outline'}
-              size={15}
+              size={DS.icon.xs + 3}
               color={isSpeaking ? colors.background : colors.primary}
             />
             <Text style={[styles.actionChipText, { color: isSpeaking ? colors.background : colors.primary }]}>
-              {isSpeaking ? 'Stop' : 'Speak'}
+              {isSpeaking ? t.mStop : t.mSpeak}
             </Text>
           </TouchableOpacity>
         )}
@@ -171,8 +190,8 @@ function TranslationResultCard({
           onPress={onCopy}
           activeOpacity={0.75}
         >
-          <Ionicons name="copy-outline" size={15} color={colors.textSecondary} />
-          <Text style={[styles.actionChipText, { color: colors.textSecondary }]}>Copy</Text>
+          <Ionicons name="copy-outline" size={DS.icon.xs + 3} color={colors.textSecondary} />
+          <Text style={[styles.actionChipText, { color: colors.textSecondary }]}>{t.mCopy}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -181,9 +200,9 @@ function TranslationResultCard({
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function TranslatorScreen() {
-  const colors = useTheme();
-  const scheme = useColorScheme();
-  const isDark  = scheme !== 'light';
+  const C       = useDSColors();
+  const isDark  = useDSIsDark();
+  const t       = useI18n();
   const router  = useRouter();
   const inputRef = useRef<TextInput>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -199,6 +218,7 @@ export default function TranslatorScreen() {
     setSourceText, setTranslatedText,
     setIsTranslating, swapLanguages,
     addHistory,
+    onboardingComplete,
   } = useStore();
 
   const { translate, isReady } = useLlama();
@@ -235,7 +255,7 @@ export default function TranslatorScreen() {
   const handleCopy = useCallback(async () => {
     if (!translatedText) return;
     await Clipboard.setStringAsync(translatedText);
-    Alert.alert('Copied', 'Translation copied to clipboard');
+    Alert.alert(t.mCopied, '');
   }, [translatedText]);
 
   const handleClear = useCallback(() => {
@@ -257,8 +277,8 @@ export default function TranslatorScreen() {
     Speech.speak(translatedText, {
       language: lang.ttsLocale,
       rate: 0.9,
-      onDone: () => setIsSpeaking(false),
-      onError: () => setIsSpeaking(false),
+      onDone:    () => setIsSpeaking(false),
+      onError:   () => setIsSpeaking(false),
       onStopped: () => setIsSpeaking(false),
     });
   }, [isSpeaking, translatedText, targetLang]);
@@ -276,9 +296,12 @@ export default function TranslatorScreen() {
   }, [swapLanguages, swapAnim]);
 
   const charNearLimit = sourceText.length > 800;
+  const showEmpty     = !sourceText && !translatedText && !isTranslating;
+
+  if (!onboardingComplete) return <Redirect href="/onboarding" />;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: C.background }]} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -295,27 +318,27 @@ export default function TranslatorScreen() {
           <View style={styles.navRow}>
             <View>
               <View style={styles.navTitleRow}>
-                <Text style={[styles.appTitle, { color: colors.text }]}>Travel</Text>
-                <Text style={[styles.appTitleAccent, { color: colors.primary }]}>Translator</Text>
+                <Text style={[styles.appTitle, { color: C.textPrimary }]}>Travel</Text>
+                <Text style={[styles.appTitleAccent, { color: C.primary }]}>Translator</Text>
               </View>
-              <Text style={[styles.appSubtitle, { color: colors.textMuted }]}>Offline · AI-powered</Text>
+              <Text style={[styles.appSubtitle, { color: C.textMuted }]}>{t.mSubtitle}</Text>
             </View>
             <TouchableOpacity
               onPress={() => router.push('/settings')}
-              style={[styles.navIconBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[styles.navIconBtn, { backgroundColor: C.surface, borderColor: C.border }, DS.shadow.level1(isDark)]}
               activeOpacity={0.75}
             >
-              <Ionicons name="settings-outline" size={19} color={colors.primary} />
+              <Ionicons name="settings-outline" size={DS.icon.md - 1} color={C.primary} />
             </TouchableOpacity>
           </View>
 
           {/* ── Language selector ─────────────────────────────────────────── */}
-          <View style={[styles.langCard, { backgroundColor: colors.card, borderColor: colors.border }, cardShadow(isDark)]}>
+          <View style={[styles.langCard, { backgroundColor: C.surface, borderColor: C.border }, DS.shadow.level1(isDark)]}>
             <View style={styles.langRow}>
               <LanguageSelector selectedCode={sourceLang} onSelect={setSourceLang} label="FROM" />
 
               <TouchableOpacity
-                style={[styles.swapBtn, { backgroundColor: colors.primaryDim }]}
+                style={[styles.swapBtn, { backgroundColor: C.accentSoft }]}
                 onPress={handleSwap}
                 activeOpacity={0.75}
               >
@@ -328,7 +351,7 @@ export default function TranslatorScreen() {
                     }),
                   }],
                 }}>
-                  <Ionicons name="swap-horizontal" size={20} color={colors.primary} />
+                  <Ionicons name="swap-horizontal" size={DS.icon.md} color={C.primary} />
                 </Animated.View>
               </TouchableOpacity>
 
@@ -337,22 +360,22 @@ export default function TranslatorScreen() {
           </View>
 
           {/* ── Input ─────────────────────────────────────────────────────── */}
-          <View style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }, cardShadow(isDark)]}>
+          <View style={[styles.inputCard, { backgroundColor: C.surface, borderColor: C.border }, DS.shadow.level1(isDark)]}>
             <TextInput
               ref={inputRef}
-              style={[styles.textInput, { color: colors.text }]}
-              placeholder="Tap to type or paste…"
-              placeholderTextColor={colors.textMuted}
+              style={[styles.textInput, { color: C.textPrimary }]}
+              placeholder={t.mPlaceholder}
+              placeholderTextColor={C.textMuted}
               value={sourceText}
               onChangeText={setSourceText}
               multiline
               maxLength={1000}
               textAlignVertical="top"
             />
-            <View style={[styles.inputFooter, { borderTopColor: colors.border }]}>
+            <View style={[styles.inputFooter, { borderTopColor: C.border }]}>
               {sourceText.length > 0 ? (
                 <Text style={[styles.charCount, {
-                  color: charNearLimit ? colors.warning : colors.textMuted,
+                  color: charNearLimit ? C.warning : C.textMuted,
                   fontWeight: charNearLimit ? '600' : '400',
                 }]}>
                   {sourceText.length}/1000
@@ -362,8 +385,8 @@ export default function TranslatorScreen() {
               )}
               <View style={styles.inputActions}>
                 {sourceText.length > 0 && (
-                  <TouchableOpacity onPress={handleClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+                  <TouchableOpacity onPress={handleClear} hitSlop={{ top: DS.space.sm, bottom: DS.space.sm, left: DS.space.sm, right: DS.space.sm }}>
+                    <Ionicons name="close-circle" size={22} color={C.textMuted} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -375,18 +398,21 @@ export default function TranslatorScreen() {
             onPress={handleTranslate}
             disabled={!sourceText.trim() || isTranslating}
             isTranslating={isTranslating}
-            colors={colors}
+            colors={C}
             isDark={isDark}
           />
 
-          {/* ── Result ────────────────────────────────────────────────────── */}
+          {/* ── Empty state ───────────────────────────────────────────────── */}
+          {showEmpty && <EmptyState colors={C} />}
+
+          {/* ── Result / Loading ──────────────────────────────────────────── */}
           {(translatedText !== '' || isTranslating) && (
             <View>
               {isTranslating && translatedText === '' ? (
-                <View style={[styles.loadingCard, { backgroundColor: colors.card, borderColor: colors.border }, cardShadow(isDark)]}>
-                  <ActivityIndicator size="large" color={colors.primary} />
-                  <Text style={[styles.loadingTitle, { color: colors.text }]}>Translating…</Text>
-                  <Text style={[styles.loadingSub, { color: colors.textMuted }]}>This may take a moment</Text>
+                <View style={[styles.loadingCard, { backgroundColor: C.surface, borderColor: C.border }, DS.shadow.level2(isDark)]}>
+                  <ActivityIndicator size="large" color={C.primary} />
+                  <Text style={[styles.loadingTitle, { color: C.textPrimary }]}>{t.mTranslating}</Text>
+                  <Text style={[styles.loadingSub, { color: C.textMuted }]}>{t.mLoadingSub}</Text>
                 </View>
               ) : (
                 <TranslationResultCard
@@ -395,7 +421,7 @@ export default function TranslatorScreen() {
                   isSpeaking={isSpeaking}
                   onSpeak={handleSpeak}
                   onCopy={handleCopy}
-                  colors={colors}
+                  colors={C}
                   isDark={isDark}
                 />
               )}
@@ -413,130 +439,139 @@ export default function TranslatorScreen() {
 const styles = StyleSheet.create({
   safe:  { flex: 1 },
   flex:  { flex: 1 },
-  scroll: { paddingHorizontal: 16, paddingTop: 14, gap: 12 },
+  scroll: { paddingHorizontal: DS.space.md, paddingTop: 14, gap: DS.space.sm + DS.space.xs },
 
   // Nav
-  navRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  navTitleRow:   { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
-  appTitle:      { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
-  appTitleAccent:{ fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
-  appSubtitle:   { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  navRow:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: DS.space.xs },
+  navTitleRow:    { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
+  appTitle:       { ...DS.type.title2, fontWeight: '800' },
+  appTitleAccent: { ...DS.type.title2, fontWeight: '800' },
+  appSubtitle:    { ...DS.type.caption1, fontWeight: '500', marginTop: 2 },
   navIconBtn: {
-    width: 42, height: 42, borderRadius: 13,
-    alignItems: 'center', justifyContent: 'center',
+    ...DS.control.iconBtnMd,
+    borderRadius: DS.radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
   },
 
   // Language card
   langCard: {
-    borderRadius: 20,
+    borderRadius: DS.radius.xl,
     borderWidth: 1,
-    padding: 12,
+    padding: DS.space.sm + DS.space.xs,
   },
   langRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: DS.space.sm,
   },
   swapBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    ...DS.control.iconBtnMd,
+    borderRadius: DS.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   // Input card
   inputCard: {
-    borderRadius: 20,
+    borderRadius: DS.radius.xl,
     borderWidth: 1,
     overflow: 'hidden',
   },
   textInput: {
-    fontSize: 17,
-    lineHeight: 26,
-    padding: 16,
-    minHeight: 130,
+    ...DS.type.body,
+    padding: DS.space.md,
+    minHeight: DS.control.inputMin,
     textAlignVertical: 'top',
   },
   inputFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: DS.space.md - 2,
+    paddingVertical: DS.space.sm + DS.space.xs,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  charCount:    { fontSize: 12 },
-  inputActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  charCount:    { ...DS.type.caption1 },
+  inputActions: { flexDirection: 'row', alignItems: 'center', gap: DS.space.sm + DS.space.xs },
 
   // Translate button
   translateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    height: 56,
-    borderRadius: 18,
+    gap: DS.space.sm,
+    height: DS.control.ctaHeight,
+    borderRadius: DS.radius.lg + 2,
   },
-  translateBtnText: { fontSize: 16, fontWeight: '700' },
+  translateBtnText: { ...DS.type.callout, fontWeight: '700' },
+
+  // Empty state
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: DS.space.xl,
+    gap: DS.space.xs,
+  },
+  emptyEmoji: { fontSize: 44, marginBottom: DS.space.xs },
+  emptyTitle: { ...DS.type.subhead, fontWeight: '600' },
+  emptySub:   { ...DS.type.footnote },
 
   // Loading card
   loadingCard: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    borderRadius: 20,
+    gap: DS.space.sm + DS.space.xs,
+    paddingVertical: DS.space.xxl - DS.space.xs,
+    paddingHorizontal: DS.space.md,
+    borderRadius: DS.radius.xl,
     borderWidth: 1,
   },
-  loadingTitle: { fontSize: 16, fontWeight: '600', marginTop: 4 },
-  loadingSub:   { fontSize: 13 },
+  loadingTitle: { ...DS.type.callout, fontWeight: '600', marginTop: DS.space.xs },
+  loadingSub:   { ...DS.type.footnote },
 
   // Result card
   resultCard: {
-    borderRadius: 20,
+    borderRadius: DS.radius.xl,
     borderWidth: 1.5,
     overflow: 'hidden',
   },
-  resultAccentBar: { height: 3 },
+  resultAccentBar:  { height: 3 },
   resultHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    gap: DS.space.sm + DS.space.xs,
+    paddingHorizontal: DS.space.md,
+    paddingVertical: DS.space.sm + DS.space.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  resultLangFlag:  { fontSize: 24 },
-  resultHeaderMeta:{ flex: 1 },
-  resultLangLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
-  resultLangName:  { fontSize: 14, fontWeight: '700', marginTop: 1 },
+  resultLangFlag:   { fontSize: DS.icon.lg },
+  resultHeaderMeta: { flex: 1 },
+  resultLangLabel:  { ...DS.type.label },
+  resultLangName:   { ...DS.type.subhead, fontWeight: '700', marginTop: 1 },
   resultText: {
-    fontSize: 20,
+    ...DS.type.title3,
     fontWeight: '500',
-    lineHeight: 31,
-    padding: 16,
-    paddingTop: 14,
+    padding: DS.space.md,
+    paddingTop: DS.space.sm + DS.space.xs,
   },
   resultActions: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    gap: DS.space.sm,
+    paddingHorizontal: DS.space.sm + DS.space.xs,
+    paddingVertical: DS.space.sm + DS.space.xs,
     borderTopWidth: StyleSheet.hairlineWidth,
     flexWrap: 'wrap',
   },
   actionChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 20,
+    gap: DS.space.xs + 1,
+    paddingHorizontal: DS.space.sm + DS.space.xs,
+    paddingVertical: DS.space.sm + 1,
+    borderRadius: DS.radius.full,
   },
-  actionChipText: { fontSize: 13, fontWeight: '600' },
+  actionChipText: { ...DS.type.footnote, fontWeight: '600' },
 
-  bottomSpacer: { height: 32 },
+  bottomSpacer: { height: DS.space.xl },
 });

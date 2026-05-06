@@ -8,11 +8,10 @@ import {
   TextInput,
   StyleSheet,
   Platform,
-  useColorScheme,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LANGUAGES, Language, getLanguageByCode } from '@/constants/languages';
-import { useTheme } from '@/constants/theme';
+import { DS, useDSColors, useDSIsDark } from '@/constants/designSystem';
 
 interface Props {
   selectedCode: string;
@@ -21,9 +20,8 @@ interface Props {
 }
 
 export function LanguageSelector({ selectedCode, onSelect, label }: Props) {
-  const colors = useTheme();
-  const scheme = useColorScheme();
-  const isDark  = scheme !== 'light';
+  const C      = useDSColors();
+  const isDark = useDSIsDark();
   const [visible, setVisible] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -53,54 +51,54 @@ export function LanguageSelector({ selectedCode, onSelect, label }: Props) {
     <>
       {/* ── Selector pill ──────────────────────────────────────────────── */}
       <TouchableOpacity
-        style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }, pillShadow]}
+        style={[styles.pill, { backgroundColor: C.surface, borderColor: C.border }, pillShadow]}
         onPress={() => setVisible(true)}
         activeOpacity={0.7}
       >
         {label && (
-          <Text style={[styles.pillLabel, { color: colors.primary }]}>{label}</Text>
+          <Text style={[styles.pillLabel, { color: C.primary }]}>{label}</Text>
         )}
         <Text style={styles.pillFlag}>{selected?.flag ?? '🌐'}</Text>
-        <Text style={[styles.pillName, { color: colors.text }]} numberOfLines={1}>
+        <Text style={[styles.pillName, { color: C.textPrimary }]} numberOfLines={1}>
           {selected?.name ?? 'Select'}
         </Text>
-        <Ionicons name="chevron-down" size={12} color={colors.textMuted} />
+        <Ionicons name="chevron-down" size={12} color={C.textMuted} />
       </TouchableOpacity>
 
       {/* ── Bottom-sheet modal ─────────────────────────────────────────── */}
       <Modal visible={visible} animationType="slide" transparent statusBarTranslucent>
-        <View style={[styles.overlay, { backgroundColor: colors.overlay }]}>
-          <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+        <View style={[styles.overlay, { backgroundColor: C.overlay }]}>
+          <View style={[styles.sheet, { backgroundColor: C.background }]}>
 
             {/* Handle */}
-            <View style={[styles.handle, { backgroundColor: colors.borderStrong }]} />
+            <View style={[styles.handle, { backgroundColor: C.borderStrong }]} />
 
             {/* Header */}
-            <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.sheetTitle, { color: colors.text }]}>Select Language</Text>
+            <View style={[styles.sheetHeader, { borderBottomColor: C.border }]}>
+              <Text style={[styles.sheetTitle, { color: C.textPrimary }]}>Select Language</Text>
               <TouchableOpacity
                 onPress={() => { setVisible(false); setSearch(''); }}
-                style={[styles.closeBtn, { backgroundColor: colors.surface }]}
+                style={[styles.closeBtn, { backgroundColor: C.surface }]}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="close" size={17} color={colors.textSecondary} />
+                <Ionicons name="close" size={17} color={C.textSecondary} />
               </TouchableOpacity>
             </View>
 
             {/* Search */}
-            <View style={[styles.searchWrap, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="search" size={16} color={colors.textMuted} />
+            <View style={[styles.searchWrap, { backgroundColor: C.surface, borderColor: C.border }]}>
+              <Ionicons name="search" size={16} color={C.textMuted} />
               <TextInput
-                style={[styles.searchInput, { color: colors.text }]}
+                style={[styles.searchInput, { color: C.textPrimary }]}
                 placeholder="Search language…"
-                placeholderTextColor={colors.textMuted}
+                placeholderTextColor={C.textMuted}
                 value={search}
                 onChangeText={setSearch}
                 returnKeyType="search"
               />
               {search.length > 0 && (
                 <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+                  <Ionicons name="close-circle" size={16} color={C.textMuted} />
                 </TouchableOpacity>
               )}
             </View>
@@ -109,8 +107,8 @@ export function LanguageSelector({ selectedCode, onSelect, label }: Props) {
             {filtered.length === 0 && (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyEmoji}>🌐</Text>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>No results</Text>
-                <Text style={[styles.emptySub, { color: colors.textMuted }]}>
+                <Text style={[styles.emptyTitle, { color: C.textPrimary }]}>No results</Text>
+                <Text style={[styles.emptySub, { color: C.textMuted }]}>
                   Try a different name or language code
                 </Text>
               </View>
@@ -128,8 +126,8 @@ export function LanguageSelector({ selectedCode, onSelect, label }: Props) {
                   <TouchableOpacity
                     style={[
                       styles.langRow,
-                      { borderBottomColor: colors.border },
-                      isSelected && { backgroundColor: colors.primaryDim },
+                      { borderBottomColor: C.border },
+                      isSelected && { backgroundColor: C.accentSoft },
                     ]}
                     onPress={() => handleSelect(item)}
                     activeOpacity={0.65}
@@ -138,15 +136,15 @@ export function LanguageSelector({ selectedCode, onSelect, label }: Props) {
                     <View style={styles.itemTextBlock}>
                       <Text style={[
                         styles.itemName,
-                        { color: colors.text },
-                        isSelected && { color: colors.primary, fontWeight: '700' },
+                        { color: C.textPrimary },
+                        isSelected && { color: C.primary, fontWeight: '700' },
                       ]}>
                         {item.name}
                       </Text>
-                      <Text style={[styles.itemNative, { color: colors.textMuted }]}>{item.nativeName}</Text>
+                      <Text style={[styles.itemNative, { color: C.textMuted }]}>{item.nativeName}</Text>
                     </View>
                     {isSelected && (
-                      <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                      <Ionicons name="checkmark-circle" size={20} color={C.primary} />
                     )}
                   </TouchableOpacity>
                 );
@@ -165,93 +163,80 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 13,
-    borderRadius: 14,
+    gap: DS.space.xs + 2,
+    paddingHorizontal: DS.space.sm + DS.space.xs,
+    paddingVertical: DS.space.sm + DS.space.xs,
+    borderRadius: DS.radius.md + 2,
     borderWidth: 1,
   },
-  pillLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  pillFlag: { fontSize: 20 },
-  pillName: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  pillLabel: { ...DS.type.label, textTransform: 'uppercase' },
+  pillFlag:  { fontSize: DS.icon.md },
+  pillName:  { flex: 1, ...DS.type.subhead, fontWeight: '600' },
 
   // Modal
-  overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
+  overlay: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: DS.radius.xxl,
+    borderTopRightRadius: DS.radius.xxl,
     maxHeight: '84%',
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    paddingBottom: Platform.OS === 'ios' ? 34 : DS.space.md,
   },
   handle: {
     width: 40,
     height: 5,
     borderRadius: 3,
     alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 4,
+    marginTop: DS.space.sm + DS.space.xs,
+    marginBottom: DS.space.xs,
   },
   sheetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: DS.space.md + DS.space.xs,
+    paddingVertical: DS.space.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  sheetTitle: { fontSize: 18, fontWeight: '700', letterSpacing: -0.2 },
+  sheetTitle: { ...DS.type.title3, letterSpacing: -0.2 },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 32, height: 32,
+    borderRadius: DS.radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    margin: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
+    gap: DS.space.sm,
+    margin: DS.space.sm + DS.space.xs,
+    paddingHorizontal: DS.space.sm + DS.space.xs,
+    paddingVertical: DS.space.sm + DS.space.xs,
+    borderRadius: DS.radius.md + 2,
     borderWidth: 1,
   },
-  searchInput: { flex: 1, fontSize: 15, paddingVertical: 0 },
+  searchInput: { flex: 1, ...DS.type.subhead, paddingVertical: 0 },
 
   // Empty state
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 48,
-    gap: 6,
+    paddingVertical: DS.space.xxl,
+    gap: DS.space.xs + 2,
   },
-  emptyEmoji: { fontSize: 36, marginBottom: 4 },
-  emptyTitle: { fontSize: 16, fontWeight: '600' },
-  emptySub:   { fontSize: 13, textAlign: 'center', paddingHorizontal: 32 },
+  emptyEmoji: { fontSize: DS.icon.xl + DS.space.sm, marginBottom: DS.space.xs },
+  emptyTitle: { ...DS.type.callout, fontWeight: '600' },
+  emptySub:   { ...DS.type.footnote, textAlign: 'center', paddingHorizontal: DS.space.xl },
 
   // List
   langRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    gap: 14,
+    paddingHorizontal: DS.space.md + DS.space.xs,
+    paddingVertical: DS.space.md - 1,
+    gap: DS.space.sm + DS.space.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  itemFlag:      { fontSize: 26, width: 36, textAlign: 'center' },
+  itemFlag:      { fontSize: DS.icon.lg - 2, width: 36, textAlign: 'center' },
   itemTextBlock: { flex: 1 },
-  itemName:      { fontSize: 15, fontWeight: '500' },
-  itemNative:    { fontSize: 12, marginTop: 2 },
+  itemName:      { ...DS.type.subhead, fontWeight: '500' },
+  itemNative:    { ...DS.type.caption1, marginTop: 2 },
 });
