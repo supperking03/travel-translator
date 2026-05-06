@@ -35,6 +35,8 @@ export type AppStrings = {
   sSectionPack: string;
   sDownloadPack: string;
   sDownloadPackDesc: string;
+  sDownloadPackBenefitTitle?: string;
+  sDownloadPackBenefit?: string;
   sCancelDownload: string;
   sCheckUpdates: string;
   sCheckUpdatesDesc: string;
@@ -93,6 +95,8 @@ const en: AppStrings = {
   sSectionPack:     'LANGUAGE PACK',
   sDownloadPack:    'Download Pack',
   sDownloadPackDesc:'~1.1 GB · Recommended on Wi-Fi',
+  sDownloadPackBenefitTitle:'Translate offline after one download',
+  sDownloadPackBenefit:'Download once. Translate anytime, even with no internet.',
   sCancelDownload:  'Cancel Download',
   sCheckUpdates:    'Check for Updates',
   sCheckUpdatesDesc:'Make sure you have the latest version',
@@ -150,6 +154,8 @@ const vi: AppStrings = {
   sSectionPack:     'GÓI NGÔN NGỮ',
   sDownloadPack:    'Tải gói ngôn ngữ',
   sDownloadPackDesc:'~1,1 GB · Nên dùng Wi-Fi',
+  sDownloadPackBenefitTitle:'Tải một lần để dùng offline lâu dài',
+  sDownloadPackBenefit:'Tải một lần. Dùng dịch mọi lúc, kể cả khi không có internet.',
   sCancelDownload:  'Hủy tải',
   sCheckUpdates:    'Kiểm tra cập nhật',
   sCheckUpdatesDesc:'Đảm bảo bạn có phiên bản mới nhất',

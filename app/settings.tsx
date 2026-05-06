@@ -42,10 +42,11 @@ const UI_LANGUAGES = [
 // ─── Status card ──────────────────────────────────────────────────────────────
 function PackStatusCard({
   isReady, isDownloading, isLoading,
-  downloadProgress, isDark, colors, children,
+  downloadProgress, isDark, colors, subtitle, children,
 }: {
   isReady: boolean; isDownloading: boolean; isLoading: boolean;
   downloadProgress: number; isDark: boolean; colors: DSColors;
+  subtitle?: string;
   children?: React.ReactNode;
 }) {
   const t = useI18n();
@@ -74,7 +75,7 @@ function PackStatusCard({
         </View>
         <View style={styles.cardMeta}>
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t.sPackTitle}</Text>
-          <Text style={[styles.cardSub, { color: colors.textMuted }]}>{t.sPackSub}</Text>
+          <Text style={[styles.cardSub, { color: colors.textMuted }]}>{subtitle ?? t.sPackSub}</Text>
         </View>
         <View style={[styles.statusPill, { backgroundColor: `${statusColor}18` }]}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -217,6 +218,10 @@ export default function SettingsScreen() {
   const shouldHighlightDownload = params.focus === 'download' || notDownloaded || hasError;
   const canShowAppLanguage = isReady || savedSizeMB !== null;
   const currentUiLanguage = UI_LANGUAGES.find((lang) => lang.code === appLanguage) ?? UI_LANGUAGES[0];
+  const packSubtitle =
+    shouldHighlightDownload && !isReady && !isDownloading && !isLoading
+      ? (t.sDownloadPackBenefitTitle ?? 'Translate offline after one download')
+      : t.sPackSub;
 
   const handleDownload = () =>
     Alert.alert(
@@ -278,14 +283,17 @@ export default function SettingsScreen() {
           downloadProgress={downloadProgress}
           isDark={isDark}
           colors={C}
+          subtitle={packSubtitle}
         >
           {shouldHighlightDownload && !isReady && !isDownloading && !isLoading && (
-            <PrimaryPackAction
-              label={t.sDownloadPack}
-              onPress={handleDownload}
-              colors={C}
-              isDark={isDark}
-            />
+            <View style={styles.primaryBlock}>
+              <PrimaryPackAction
+                label={t.sDownloadPack}
+                onPress={handleDownload}
+                colors={C}
+                isDark={isDark}
+              />
+            </View>
           )}
 
           {hasError && (
@@ -458,6 +466,7 @@ const styles = StyleSheet.create({
   progressTrack:    { height: 6, borderRadius: 3, overflow: 'hidden' },
   progressFill:     { height: 6, borderRadius: 3 },
   packActions:      { padding: DS.space.md, gap: DS.space.sm + DS.space.xs },
+  primaryBlock:     { gap: DS.space.sm },
 
   errorCard: {
     flexDirection: 'row',
