@@ -6,18 +6,141 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
-  Platform,
+  useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+
 import { useStore } from '@/store/useStore';
 import { useLlama } from '@/hooks/useLlama';
-import { isModelDownloaded, getModelFileSizeMB, deleteModel } from '@/utils/modelManager';
-import { MODEL_SIZE_MB, MODEL_DOWNLOAD_URL } from '@/constants/model';
-import { COLORS } from '@/constants/theme';
+import { getModelFileSizeMB, deleteModel } from '@/utils/modelManager';
+import { MODEL_SIZE_MB } from '@/constants/model';
+import { useTheme } from '@/constants/theme';
 
+function cardShadow(isDark: boolean) {
+  if (isDark) return {};
+  return {
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  };
+}
+
+// ─── Status card ──────────────────────────────────────────────────────────────
+function PackStatusCard({
+  isReady, isDownloading, isLoading,
+  downloadProgress, isDark,
+  colors,
+}: {
+  isReady: boolean; isDownloading: boolean; isLoading: boolean;
+  downloadProgress: number; isDark: boolean;
+  colors: ReturnType<typeof useTheme>;
+}) {
+  const statusColor = isReady       ? colors.secondary
+                    : isDownloading ? colors.primary
+                    : isLoading     ? colors.primary
+                    :                 colors.warning;
+
+  const statusLabel = isReady       ? 'Ready'
+                    : isDownloading ? `${Math.round(downloadProgress * 100)}%`
+                    : isLoading     ? 'Loading…'
+                    :                 'Not installed';
+
+  const iconName: React.ComponentProps<typeof Ionicons>['name'] =
+    isReady       ? 'checkmark-circle-outline'
+    : isDownloading ? 'cloud-download-outline'
+    : isLoading   ? 'hourglass-outline'
+    :               'cloud-outline';
+
+  return (
+    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }, cardShadow(isDark)]}>
+      <View style={styles.cardHeader}>
+        <View style={[styles.cardIcon, { backgroundColor: `${statusColor}18` }]}>
+          <Ionicons name={iconName} size={26} color={statusColor} />
+        </View>
+        <View style={styles.cardMeta}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Offline Translation Pack</Text>
+          <Text style={[styles.cardSub, { color: colors.textMuted }]}>Works without internet · 33 languages</Text>
+        </View>
+        <View style={[styles.statusPill, { backgroundColor: `${statusColor}18` }]}>
+          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+          <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
+        </View>
+      </View>
+
+      {/* Download progress */}
+      {isDownloading && (
+        <>
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={styles.progressWrap}>
+            <View style={styles.progressLabelRow}>
+              <Ionicons name="cloud-download-outline" size={13} color={colors.primary} />
+              <Text style={[styles.progressText, { color: colors.textMuted }]}>
+                {`${Math.round(downloadProgress * MODEL_SIZE_MB)} MB of ${MODEL_SIZE_MB} MB`}
+              </Text>
+              <Text style={[styles.progressPct, { color: colors.primary }]}>
+                {Math.round(downloadProgress * 100)}%
+              </Text>
+            </View>
+            <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+              <View
+                style={[
+                  styles.progressFill,
+                  { backgroundColor: colors.primary, width: `${downloadProgress * 100}%` as any },
+                ]}
+              />
+            </View>
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+// ─── Action row ───────────────────────────────────────────────────────────────
+function ActionRow({
+  icon, label, description, onPress, variant = 'default', isDark, colors,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  label: string;
+  description?: string;
+  onPress: () => void;
+  variant?: 'default' | 'danger';
+  isDark: boolean;
+  colors: ReturnType<typeof useTheme>;
+}) {
+  const fg     = variant === 'danger' ? colors.error   : colors.text;
+  const iconBg = variant === 'danger' ? colors.errorDim : colors.surface;
+  const iconFg = variant === 'danger' ? colors.error   : colors.primary;
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }, cardShadow(isDark)]}
+    >
+      <View style={[styles.rowIcon, { backgroundColor: iconBg }]}>
+        <Ionicons name={icon} size={18} color={iconFg} />
+      </View>
+      <View style={styles.rowText}>
+        <Text style={[styles.rowLabel, { color: fg }]}>{label}</Text>
+        {description && (
+          <Text style={[styles.rowDesc, { color: colors.textMuted }]}>{description}</Text>
+        )}
+      </View>
+      <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
+    </TouchableOpacity>
+  );
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
-  const router = useRouter();
+  const colors = useTheme();
+  const scheme = useColorScheme();
+  const isDark  = scheme !== 'light';
+
   const { modelStatus, downloadProgress, modelError, clearHistory } = useStore();
   const { downloadAndLoad, cancelDownload, releaseModel } = useLlama();
 
@@ -27,21 +150,43 @@ export default function SettingsScreen() {
     getModelFileSizeMB().then(setSavedSizeMB);
   }, [modelStatus]);
 
-  const handleDownload = () => {
+  const isDownloading = modelStatus === 'downloading';
+  const isLoading     = modelStatus === 'loading';
+  const isReady       = modelStatus === 'ready';
+  const hasError      = modelStatus === 'error';
+  const notDownloaded = modelStatus === 'not_downloaded';
+
+  const handleDownload = () =>
     Alert.alert(
-      'Download AI Model',
-      `This will download the Hy-MT1.5-1.8B model (~${MODEL_SIZE_MB} MB). Make sure you are on Wi-Fi.`,
+      'Download Language Pack',
+      `This will download ~${MODEL_SIZE_MB} MB. Best done on Wi-Fi.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Download', onPress: downloadAndLoad },
       ]
     );
-  };
 
-  const handleDelete = () => {
+  const handleRedownload = () =>
     Alert.alert(
-      'Delete Model',
-      'This will remove the AI model from your device. You will need to re-download it to use translation.',
+      'Re-download Pack',
+      `This will re-download the full pack (~${MODEL_SIZE_MB} MB). Best done on Wi-Fi.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Re-download',
+          onPress: async () => {
+            await releaseModel();
+            await deleteModel();
+            downloadAndLoad();
+          },
+        },
+      ]
+    );
+
+  const handleDelete = () =>
+    Alert.alert(
+      'Delete Pack',
+      "This removes the offline pack from your device. You'll need to re-download it to translate.",
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -55,292 +200,242 @@ export default function SettingsScreen() {
         },
       ]
     );
-  };
 
-  const handleClearHistory = () => {
+  const handleClearHistory = () =>
     Alert.alert('Clear History', 'Delete all translation history?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Clear', style: 'destructive', onPress: clearHistory },
     ]);
-  };
-
-  const isDownloading = modelStatus === 'downloading';
-  const isLoading = modelStatus === 'loading';
-  const isReady = modelStatus === 'ready';
-  const hasError = modelStatus === 'error';
-  const notDownloaded = modelStatus === 'not_downloaded';
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
 
-        {/* Model info card */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AI Model</Text>
-          <View style={styles.card}>
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>Model</Text>
-              <Text style={styles.rowValue}>Qwen3-1.7B</Text>
+        {/* ── Status card ────────────────────────────────────────────────── */}
+        <PackStatusCard
+          isReady={isReady}
+          isDownloading={isDownloading}
+          isLoading={isLoading}
+          downloadProgress={downloadProgress}
+          isDark={isDark}
+          colors={colors}
+        />
+
+        {/* ── Error banner ───────────────────────────────────────────────── */}
+        {hasError && (
+          <View style={[styles.errorCard, { backgroundColor: colors.errorDim, borderColor: `${colors.error}35` }]}>
+            <View style={[styles.errorIcon, { backgroundColor: `${colors.error}18` }]}>
+              <Ionicons name="alert-circle-outline" size={20} color={colors.error} />
             </View>
-            <View style={styles.divider} />
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>Quantization</Text>
-              <Text style={styles.rowValue}>Q4_K_M (standard)</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>Size</Text>
-              <Text style={styles.rowValue}>~{MODEL_SIZE_MB} MB</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>Languages</Text>
-              <Text style={styles.rowValue}>100+ languages</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>Status</Text>
-              <Text style={[
-                styles.rowValue,
-                isReady && { color: COLORS.success },
-                hasError && { color: COLORS.error },
-                (isDownloading || isLoading) && { color: COLORS.primary },
-              ]}>
-                {isReady ? 'Ready ✓'
-                  : isDownloading ? `Downloading ${Math.round(downloadProgress * 100)}%`
-                  : isLoading ? 'Loading...'
-                  : hasError ? 'Error'
-                  : 'Not downloaded'}
+            <View style={styles.errorText}>
+              <Text style={[styles.errorTitle, { color: colors.error }]}>Something went wrong</Text>
+              <Text style={[styles.errorDesc, { color: colors.textSecondary }]}>
+                Try deleting and re-downloading the pack.
               </Text>
             </View>
-            {savedSizeMB !== null && (
-              <>
-                <View style={styles.divider} />
-                <View style={styles.row}>
-                  <Text style={styles.rowLabel}>Saved size</Text>
-                  <Text style={styles.rowValue}>{savedSizeMB} MB</Text>
-                </View>
-              </>
-            )}
-          </View>
-        </View>
-
-        {/* Download progress */}
-        {isDownloading && (
-          <View style={styles.progressContainer}>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${downloadProgress * 100}%` }]} />
-            </View>
-            <Text style={styles.progressText}>
-              {Math.round(downloadProgress * MODEL_SIZE_MB)} / {MODEL_SIZE_MB} MB
-            </Text>
           </View>
         )}
 
-        {/* Error detail */}
-        {hasError && (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorTitle}>Error loading model</Text>
-            {modelError ? (
-              <Text style={styles.errorText}>{modelError}</Text>
-            ) : null}
-          </View>
-        )}
-
-        {/* Actions */}
+        {/* ── Pack actions ───────────────────────────────────────────────── */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actions</Text>
-          <View style={styles.actionGroup}>
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>LANGUAGE PACK</Text>
+          <View style={styles.rowGroup}>
+
             {(notDownloaded || hasError) && (
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleDownload}>
-                <Text style={styles.primaryBtnText}>Download Model (~{MODEL_SIZE_MB} MB)</Text>
-              </TouchableOpacity>
+              <ActionRow
+                icon="cloud-download-outline"
+                label="Download Pack"
+                description={`~${MODEL_SIZE_MB} MB · Recommended on Wi-Fi`}
+                onPress={handleDownload}
+                isDark={isDark}
+                colors={colors}
+              />
             )}
 
             {isDownloading && (
-              <TouchableOpacity style={styles.dangerBtn} onPress={cancelDownload}>
-                <Text style={styles.dangerBtnText}>Cancel Download</Text>
-              </TouchableOpacity>
+              <ActionRow
+                icon="close-circle-outline"
+                label="Cancel Download"
+                variant="danger"
+                onPress={cancelDownload}
+                isDark={isDark}
+                colors={colors}
+              />
+            )}
+
+            {isReady && !isDownloading && (
+              <ActionRow
+                icon="refresh-outline"
+                label="Check for Updates"
+                description="Make sure you have the latest version"
+                onPress={() => Alert.alert('Up to Date', 'Your offline pack is already the latest version.')}
+                isDark={isDark}
+                colors={colors}
+              />
             )}
 
             {(isReady || savedSizeMB !== null) && !isDownloading && !isLoading && (
-              <TouchableOpacity style={styles.dangerBtn} onPress={handleDelete}>
-                <Text style={styles.dangerBtnText}>Delete Model</Text>
-              </TouchableOpacity>
+              <ActionRow
+                icon="arrow-down-circle-outline"
+                label="Re-download Pack"
+                description="Replace with a fresh copy"
+                onPress={handleRedownload}
+                isDark={isDark}
+                colors={colors}
+              />
+            )}
+
+            {(isReady || savedSizeMB !== null) && !isDownloading && !isLoading && (
+              <ActionRow
+                icon="trash-outline"
+                label="Delete Pack"
+                description="Frees ~1.1 GB on your device"
+                variant="danger"
+                onPress={handleDelete}
+                isDark={isDark}
+                colors={colors}
+              />
             )}
           </View>
         </View>
 
-        {/* Data */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Data</Text>
-          <View style={styles.actionGroup}>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={handleClearHistory}>
-              <Text style={styles.secondaryBtnText}>Clear Translation History</Text>
-            </TouchableOpacity>
+        {/* ── Privacy banner ─────────────────────────────────────────────── */}
+        <View style={[styles.privacyCard, { backgroundColor: colors.secondaryDim, borderColor: `${colors.secondary}28` }]}>
+          <View style={[styles.privacyIcon, { backgroundColor: `${colors.secondary}18` }]}>
+            <Ionicons name="shield-checkmark-outline" size={22} color={colors.secondary} />
           </View>
-        </View>
-
-        {/* About */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <View style={styles.card}>
-            <Text style={styles.aboutText}>
-              Travel Translator uses the{' '}
-              <Text style={styles.link}>Hy-MT1.5-1.8B</Text>{' '}
-              model by Tencent's Hunyuan team, compressed to 462MB using Sherry 1.25-bit
-              quantization (ACL 2026).{'\n\n'}
-              All translation happens on-device. No data is ever sent to any server.{'\n\n'}
-              Supports 33 languages and 1,056 translation directions, outperforming
-              commercial APIs like Microsoft Translator on Chinese-Foreign benchmarks.
+          <View style={styles.privacyText}>
+            <Text style={[styles.privacyTitle, { color: colors.text }]}>100% Private</Text>
+            <Text style={[styles.privacyDesc, { color: colors.textSecondary }]}>
+              All translations happen on your device. Nothing is ever sent to a server.
             </Text>
           </View>
         </View>
 
+        {/* ── Data ───────────────────────────────────────────────────────── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>DATA</Text>
+          <View style={styles.rowGroup}>
+            <ActionRow
+              icon="time-outline"
+              label="Clear Translation History"
+              description="Remove all past translations"
+              onPress={handleClearHistory}
+              isDark={isDark}
+              colors={colors}
+            />
+          </View>
+        </View>
+
+        <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scroll: { flex: 1 },
-  content: {
-    padding: 16,
-    gap: 20,
-    paddingBottom: 40,
-  },
-  section: {
-    gap: 8,
-  },
-  sectionTitle: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    paddingLeft: 4,
-  },
+  safe:  { flex: 1 },
+  flex:  { flex: 1 },
+  scroll: { paddingHorizontal: 16, paddingTop: 16, gap: 16 },
+
+  // Status card
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
+    borderRadius: 20,
+    borderWidth: 1,
     overflow: 'hidden',
   },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+  },
+  cardIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardMeta:  { flex: 1, gap: 3 },
+  cardTitle: { fontSize: 15, fontWeight: '700' },
+  cardSub:   { fontSize: 12, lineHeight: 17 },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  statusDot:  { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 11, fontWeight: '700' },
+  divider:    { height: StyleSheet.hairlineWidth },
+
+  // Progress
+  progressWrap: { padding: 16, gap: 8 },
+  progressLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  progressText: { flex: 1, fontSize: 12 },
+  progressPct:  { fontSize: 12, fontWeight: '700' },
+  progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  progressFill:  { height: 6, borderRadius: 3 },
+
+  // Error
+  errorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  errorIcon:  { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  errorText:  { flex: 1, gap: 2 },
+  errorTitle: { fontSize: 13, fontWeight: '700' },
+  errorDesc:  { fontSize: 12, lineHeight: 17 },
+
+  // Section
+  section:      { gap: 10 },
+  sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1.3, paddingHorizontal: 2 },
+  rowGroup:     { gap: 10 },
+
+  // Rows
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 13,
-  },
-  rowLabel: {
-    color: COLORS.text,
-    fontSize: 15,
-  },
-  rowValue: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    fontWeight: '500',
-    maxWidth: '60%',
-    textAlign: 'right',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginLeft: 16,
-  },
-  progressContainer: {
-    gap: 6,
-  },
-  progressTrack: {
-    height: 6,
-    backgroundColor: COLORS.surface,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: COLORS.primary,
-    borderRadius: 3,
-  },
-  progressText: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    textAlign: 'right',
-  },
-  errorCard: {
-    backgroundColor: 'rgba(239,68,68,0.1)',
-    borderRadius: 12,
+    gap: 12,
     padding: 14,
-    gap: 6,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.3)',
   },
-  errorTitle: {
-    color: COLORS.error,
-    fontSize: 13,
-    fontWeight: '700',
+  rowIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
   },
-  errorText: {
-    color: COLORS.text,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  errorHint: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 4,
-  },
-  actionGroup: {
-    gap: 10,
-  },
-  primaryBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 13,
-    padding: 15,
+  rowText:  { flex: 1, gap: 2 },
+  rowLabel: { fontSize: 15, fontWeight: '600' },
+  rowDesc:  { fontSize: 12, lineHeight: 17 },
+
+  // Privacy
+  privacyCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  primaryBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  secondaryBtn: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 13,
-    padding: 15,
-    alignItems: 'center',
-  },
-  secondaryBtnText: {
-    color: COLORS.text,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  dangerBtn: {
-    backgroundColor: 'rgba(239,68,68,0.12)',
-    borderRadius: 13,
-    padding: 15,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.25)',
-  },
-  dangerBtnText: {
-    color: COLORS.error,
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  aboutText: {
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    lineHeight: 21,
+    gap: 14,
     padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
   },
-  link: {
-    color: COLORS.primary,
-    fontWeight: '600',
+  privacyIcon: {
+    width: 46, height: 46, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
   },
+  privacyText:  { flex: 1, gap: 4 },
+  privacyTitle: { fontSize: 14, fontWeight: '700' },
+  privacyDesc:  { fontSize: 13, lineHeight: 19 },
 });
