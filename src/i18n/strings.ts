@@ -49,6 +49,9 @@ export type AppStrings = {
   sClearHistoryDesc: string;
   sErrorTitle: string;
   sErrorDesc: string;
+  sAppLanguage?: string;
+  sAppLanguageDesc?: string;
+  sChooseAppLanguage?: string;
   // Alerts
   aCancel: string;
   aDownload: string;
@@ -104,6 +107,9 @@ const en: AppStrings = {
   sClearHistoryDesc:'Remove all past translations',
   sErrorTitle:      'Something went wrong',
   sErrorDesc:       'Try deleting and re-downloading the pack.',
+  sAppLanguage:     'App Language',
+  sAppLanguageDesc: 'Change the language used in the app',
+  sChooseAppLanguage:'Choose App Language',
   aCancel:          'Cancel',
   aDownload:        'Download',
   aDelete:          'Delete',
@@ -158,6 +164,9 @@ const vi: AppStrings = {
   sClearHistoryDesc:'Xóa tất cả các bản dịch đã lưu',
   sErrorTitle:      'Đã xảy ra lỗi',
   sErrorDesc:       'Hãy thử xóa và tải lại gói.',
+  sAppLanguage:     'Ngôn ngữ ứng dụng',
+  sAppLanguageDesc: 'Đổi ngôn ngữ hiển thị trong ứng dụng',
+  sChooseAppLanguage:'Chọn ngôn ngữ ứng dụng',
   aCancel:          'Hủy',
   aDownload:        'Tải xuống',
   aDelete:          'Xóa',

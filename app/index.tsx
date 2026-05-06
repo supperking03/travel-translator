@@ -226,11 +226,7 @@ export default function TranslatorScreen() {
   const handleTranslate = useCallback(async () => {
     if (!sourceText.trim()) return;
     if (!isReady) {
-      Alert.alert(
-        'Model Not Ready',
-        'Please download the AI model first. Tap the status banner at the top.',
-        [{ text: 'Go to Settings', onPress: () => router.push('/settings') }, { text: 'Cancel' }]
-      );
+      router.push('/settings?focus=download');
       return;
     }
     if (sourceLang === targetLang) {
@@ -318,7 +314,7 @@ export default function TranslatorScreen() {
           <View style={styles.navRow}>
             <View>
               <View style={styles.navTitleRow}>
-                <Text style={[styles.appTitle, { color: C.textPrimary }]}>Travel</Text>
+                <Text style={[styles.appTitle, { color: C.textPrimary }]}>Free Offline</Text>
                 <Text style={[styles.appTitleAccent, { color: C.primary }]}>Translator</Text>
               </View>
               <Text style={[styles.appSubtitle, { color: C.textMuted }]}>{t.mSubtitle}</Text>
