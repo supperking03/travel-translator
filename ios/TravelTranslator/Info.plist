@@ -47,6 +47,12 @@
 	</dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Used for voice input translation</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to take a photo and extract text for offline translation</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Used to choose a photo and extract text for offline translation</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Used when saving images picked for offline translation</string>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActionSheetIOS,
   View,
   Text,
   TextInput,
@@ -17,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import * as ImagePicker from 'expo-image-picker';
 import * as Speech from 'expo-speech';
 
 import { useStore } from '@/store/useStore';
@@ -25,6 +27,7 @@ import { LanguageSelector } from '@/components/LanguageSelector';
 import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem';
 import { getLanguageByCode } from '@/constants/languages';
 import { useI18n } from '@/i18n/useI18n';
+import { recognizeTextFromImage } from '@/utils/imageTextRecognition';
 
 // ─── Translate button ─────────────────────────────────────────────────────────
 function TranslateButton({
@@ -206,6 +209,7 @@ export default function TranslatorScreen() {
   const router  = useRouter();
   const inputRef = useRef<TextInput>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isReadingImage, setIsReadingImage] = useState(false);
 
   const swapAngle = useRef(0);
   const swapAnim  = useRef(new Animated.Value(0)).current;
@@ -260,6 +264,88 @@ export default function TranslatorScreen() {
     setIsSpeaking(false);
     inputRef.current?.focus();
   }, [setSourceText, setTranslatedText]);
+
+  const handleRecognizedImage = useCallback(async (imageUri: string) => {
+    try {
+      setIsReadingImage(true);
+      const extracted = (await recognizeTextFromImage(imageUri)).trim();
+
+      if (!extracted) {
+        Alert.alert(t.mNoTextFound ?? 'No text found in this image.');
+        return;
+      }
+
+      setSourceText(extracted);
+      setTranslatedText('');
+      inputRef.current?.focus();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to read text from image.';
+      Alert.alert('Image Text Error', message);
+    } finally {
+      setIsReadingImage(false);
+    }
+  }, [setSourceText, setTranslatedText, t.mNoTextFound]);
+
+  const handlePickPhoto = useCallback(async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        t.mPhotoPermissionTitle ?? 'Photo access required',
+        t.mPhotoPermissionDesc ?? 'Allow photo access to choose an image for translation.'
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+      allowsEditing: false,
+      selectionLimit: 1,
+    });
+
+    if (result.canceled || !result.assets[0]?.uri) return;
+    await handleRecognizedImage(result.assets[0].uri);
+  }, [handleRecognizedImage, t.mPhotoPermissionDesc, t.mPhotoPermissionTitle]);
+
+  const handleTakePhoto = useCallback(async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        t.mCameraPermissionTitle ?? 'Camera permission required',
+        t.mCameraPermissionDesc ?? 'Allow camera access to take a photo for translation.'
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+      allowsEditing: false,
+    });
+
+    if (result.canceled || !result.assets[0]?.uri) return;
+    await handleRecognizedImage(result.assets[0].uri);
+  }, [handleRecognizedImage, t.mCameraPermissionDesc, t.mCameraPermissionTitle]);
+
+  const handleImageOptions = useCallback(() => {
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options: [
+          t.mPhotoLibrary ?? 'Photo',
+          t.mTakePhoto ?? 'Camera',
+          t.aCancel,
+        ],
+        cancelButtonIndex: 2,
+      },
+      (buttonIndex) => {
+        if (buttonIndex === 0) {
+          void handlePickPhoto();
+        } else if (buttonIndex === 1) {
+          void handleTakePhoto();
+        }
+      }
+    );
+  }, [handlePickPhoto, handleTakePhoto, t.aCancel, t.mPhotoLibrary, t.mTakePhoto]);
 
   const handleSpeak = useCallback(() => {
     const lang = getLanguageByCode(targetLang);
@@ -380,6 +466,17 @@ export default function TranslatorScreen() {
                 <View />
               )}
               <View style={styles.inputActions}>
+                <TouchableOpacity
+                  onPress={handleImageOptions}
+                  disabled={isReadingImage}
+                  hitSlop={{ top: DS.space.sm, bottom: DS.space.sm, left: DS.space.sm, right: DS.space.sm }}
+                >
+                  {isReadingImage ? (
+                    <ActivityIndicator size="small" color={C.primary} />
+                  ) : (
+                    <Ionicons name="image-outline" size={20} color={C.primary} />
+                  )}
+                </TouchableOpacity>
                 {sourceText.length > 0 && (
                   <TouchableOpacity onPress={handleClear} hitSlop={{ top: DS.space.sm, bottom: DS.space.sm, left: DS.space.sm, right: DS.space.sm }}>
                     <Ionicons name="close-circle" size={22} color={C.textMuted} />
@@ -478,7 +575,8 @@ const styles = StyleSheet.create({
   textInput: {
     ...DS.type.body,
     padding: DS.space.md,
-    minHeight: DS.control.inputMin,
+    height: DS.control.inputMin + 30,
+    maxHeight: DS.control.inputMin + 30,
     textAlignVertical: 'top',
   },
   inputFooter: {

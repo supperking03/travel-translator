@@ -15,7 +15,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.theluxenomad.traveltranslator",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Used for voice input translation"
+        "NSMicrophoneUsageDescription": "Used for voice input translation",
+        "NSCameraUsageDescription": "Used to take a photo and extract text for offline translation",
+        "NSPhotoLibraryUsageDescription": "Used to choose a photo and extract text for offline translation",
+        "NSPhotoLibraryAddUsageDescription": "Used when saving images picked for offline translation"
       }
     },
     "android": {
@@ -37,6 +40,7 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      "expo-image-picker",
       [
         "expo-splash-screen",
         {

@@ -25,6 +25,14 @@ export type AppStrings = {
   mCopy: string;
   mCopied: string;
   mLoadingSub: string;
+  mPhotoLibrary?: string;
+  mTakePhoto?: string;
+  mReadingText?: string;
+  mNoTextFound?: string;
+  mCameraPermissionTitle?: string;
+  mCameraPermissionDesc?: string;
+  mPhotoPermissionTitle?: string;
+  mPhotoPermissionDesc?: string;
   // Settings
   sTitle: string;
   sPackTitle: string;
@@ -86,6 +94,14 @@ const en: AppStrings = {
   mCopy:            'Copy',
   mCopied:          'Copied',
   mLoadingSub:      'This may take a moment',
+  mPhotoLibrary:    'Photo',
+  mTakePhoto:       'Camera',
+  mReadingText:     'Reading text from image…',
+  mNoTextFound:     'No text found in this image.',
+  mCameraPermissionTitle: 'Camera permission required',
+  mCameraPermissionDesc:  'Allow camera access to take a photo for translation.',
+  mPhotoPermissionTitle:  'Photo access required',
+  mPhotoPermissionDesc:   'Allow photo access to choose an image for translation.',
   sTitle:           'Offline Language Pack',
   sPackTitle:       'Offline Translation Pack',
   sPackSub:         'Works without internet · 33 languages',
@@ -145,6 +161,14 @@ const vi: AppStrings = {
   mCopy:            'Sao chép',
   mCopied:          'Đã sao chép',
   mLoadingSub:      'Có thể mất một lúc',
+  mPhotoLibrary:    'Ảnh',
+  mTakePhoto:       'Chụp ảnh',
+  mReadingText:     'Đang đọc chữ từ ảnh…',
+  mNoTextFound:     'Không tìm thấy chữ trong ảnh này.',
+  mCameraPermissionTitle: 'Cần quyền camera',
+  mCameraPermissionDesc:  'Cho phép dùng camera để chụp ảnh và dịch.',
+  mPhotoPermissionTitle:  'Cần quyền truy cập ảnh',
+  mPhotoPermissionDesc:   'Cho phép truy cập ảnh để chọn ảnh và dịch.',
   sTitle:           'Gói ngôn ngữ offline',
   sPackTitle:       'Gói dịch thuật offline',
   sPackSub:         'Hoạt động không cần internet · 33 ngôn ngữ',
