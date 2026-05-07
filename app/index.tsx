@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActionSheetIOS,
   View,
@@ -79,31 +79,6 @@ function TranslateButton({
         )}
       </Animated.View>
     </TouchableOpacity>
-  );
-}
-
-// ─── Empty state ──────────────────────────────────────────────────────────────
-function EmptyState({ colors }: { colors: DSColors }) {
-  const t      = useI18n();
-  const breath = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(breath, { toValue: 0.55, duration: 2200, useNativeDriver: true }),
-        Animated.timing(breath, { toValue: 1,    duration: 2200, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [breath]);
-
-  return (
-    <Animated.View style={[styles.emptyState, { opacity: breath }]}>
-      <Text style={styles.emptyEmoji}>🌏</Text>
-      <Text style={[styles.emptyTitle, { color: colors.textMuted }]}>{t.mEmptyTitle}</Text>
-      <Text style={[styles.emptySub, { color: colors.textMuted }]}>{t.mEmptySub}</Text>
-    </Animated.View>
   );
 }
 
@@ -364,7 +339,6 @@ export default function TranslatorScreen() {
   }, [swapLanguages, swapAnim]);
 
   const charNearLimit = sourceText.length > 800;
-  const showEmpty     = !sourceText && !translatedText && !isTranslating;
 
   if (!onboardingComplete) return <Redirect href="/onboarding" />;
 
@@ -414,11 +388,8 @@ export default function TranslatorScreen() {
               textAlignVertical="top"
             />
             <View style={[styles.inputFooter, { borderTopColor: C.border }]}>
-              {sourceText.length > 0 ? (
-                <Text style={[styles.charCount, {
-                  color: charNearLimit ? C.warning : C.textMuted,
-                  fontWeight: charNearLimit ? '600' : '400',
-                }]}>
+              {charNearLimit ? (
+                <Text style={[styles.charCount, { color: C.warning, fontWeight: '600' }]}>
                   {sourceText.length}/1000
                 </Text>
               ) : (
@@ -478,9 +449,6 @@ export default function TranslatorScreen() {
             colors={C}
             isDark={isDark}
           />
-
-          {/* ── Empty state ───────────────────────────────────────────────── */}
-          {showEmpty && <EmptyState colors={C} />}
 
           {/* ── Result / Loading ──────────────────────────────────────────── */}
           {(translatedText !== '' || isTranslating) && (

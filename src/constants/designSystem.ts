@@ -1,5 +1,6 @@
 // ─── Travel Translator Design System Tokens ───────────────────────────────────
 import { useColorScheme } from 'react-native';
+import { useStore } from '@/store/useStore';
 
 // ── Color palettes ────────────────────────────────────────────────────────────
 const COLORS_LIGHT = {
@@ -48,13 +49,21 @@ const COLORS_DARK = {
 
 export type DSColors = typeof COLORS_DARK;
 
+function useEffectiveScheme(): 'light' | 'dark' {
+  const system = useColorScheme();
+  const pref   = useStore((s) => s.themePreference);
+  if (pref === 'light') return 'light';
+  if (pref === 'dark')  return 'dark';
+  return system === 'light' ? 'light' : 'dark';
+}
+
 export function useDSColors(): DSColors {
-  const scheme = useColorScheme();
+  const scheme = useEffectiveScheme();
   return scheme === 'light' ? (COLORS_LIGHT as unknown as DSColors) : COLORS_DARK;
 }
 
 export function useDSIsDark(): boolean {
-  return useColorScheme() !== 'light';
+  return useEffectiveScheme() === 'dark';
 }
 
 // ── Design tokens ─────────────────────────────────────────────────────────────

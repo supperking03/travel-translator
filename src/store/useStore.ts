@@ -52,6 +52,10 @@ interface TranslatorState {
   // App language (i18n)
   appLanguage: string;
   setAppLanguage: (lang: string) => void;
+
+  // Appearance
+  themePreference: 'system' | 'light' | 'dark';
+  setThemePreference: (pref: 'system' | 'light' | 'dark') => void;
 }
 
 export const useStore = create<TranslatorState>()(
@@ -101,6 +105,9 @@ export const useStore = create<TranslatorState>()(
 
       appLanguage: 'en',
       setAppLanguage: (lang) => set({ appLanguage: lang }),
+
+      themePreference: 'system',
+      setThemePreference: (pref) => set({ themePreference: pref }),
     }),
     {
       name: 'travel-translator-store',
@@ -108,6 +115,7 @@ export const useStore = create<TranslatorState>()(
       partialize: (state) => ({
         onboardingComplete: state.onboardingComplete,
         appLanguage:        state.appLanguage,
+        themePreference:    state.themePreference,
         sourceLang:         state.sourceLang,
         targetLang:         state.targetLang,
         history:            state.history,

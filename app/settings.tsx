@@ -187,6 +187,55 @@ function PrimaryPackAction({
   );
 }
 
+// ─── Theme picker row ─────────────────────────────────────────────────────────
+type ThemePref = 'system' | 'light' | 'dark';
+const THEME_OPTIONS: { key: ThemePref; icon: React.ComponentProps<typeof Ionicons>['name']; label: string }[] = [
+  { key: 'light',  icon: 'sunny-outline',          label: 'Light'  },
+  { key: 'system', icon: 'phone-portrait-outline',  label: 'Auto'   },
+  { key: 'dark',   icon: 'moon-outline',            label: 'Dark'   },
+];
+
+function ThemePickerRow({
+  value, onChange, colors, isDark,
+}: {
+  value: ThemePref; onChange: (v: ThemePref) => void;
+  colors: DSColors; isDark: boolean;
+}) {
+  return (
+    <View style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }, DS.shadow.level2(isDark)]}>
+      <View style={[styles.rowIcon, { backgroundColor: colors.surface }]}>
+        <Ionicons name="contrast-outline" size={18} color={colors.primary} />
+      </View>
+      <Text style={[styles.rowLabel, { color: colors.textPrimary, flex: 1 }]}>Appearance</Text>
+      <View style={[styles.segmented, { backgroundColor: colors.background, borderColor: colors.border }]}>
+        {THEME_OPTIONS.map((opt) => {
+          const active = value === opt.key;
+          return (
+            <TouchableOpacity
+              key={opt.key}
+              onPress={() => onChange(opt.key)}
+              activeOpacity={0.75}
+              style={[
+                styles.segment,
+                active && { backgroundColor: colors.surface, ...DS.shadow.level1(isDark) },
+              ]}
+            >
+              <Ionicons
+                name={opt.icon}
+                size={13}
+                color={active ? colors.primary : colors.textMuted}
+              />
+              <Text style={[styles.segmentLabel, { color: active ? colors.primary : colors.textMuted }]}>
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
   const C      = useDSColors();
@@ -195,7 +244,11 @@ export default function SettingsScreen() {
   const nav    = useNavigation();
   const params = useLocalSearchParams<{ focus?: string }>();
 
-  const { modelStatus, downloadProgress, appLanguage, setAppLanguage } = useStore();
+  const {
+    modelStatus, downloadProgress,
+    appLanguage, setAppLanguage,
+    themePreference, setThemePreference,
+  } = useStore();
   const { downloadAndLoad, cancelDownload, releaseModel } = useLlama();
 
   const [savedSizeMB, setSavedSizeMB] = useState<number | null>(null);
@@ -367,6 +420,15 @@ export default function SettingsScreen() {
           />
         )}
 
+        {canShowAppLanguage && (
+          <ThemePickerRow
+            value={themePreference}
+            onChange={setThemePreference}
+            colors={C}
+            isDark={isDark}
+          />
+        )}
+
         <View style={{ height: 32 }} />
       </ScrollView>
 
@@ -509,6 +571,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: DS.space.md,
   },
   primaryActionLabel: { ...DS.type.headline, fontWeight: '700' },
+
+  segmented: {
+    flexDirection: 'row',
+    borderRadius: DS.radius.md,
+    borderWidth: 1,
+    padding: 3,
+    gap: 2,
+  },
+  segment: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DS.space.xs - 1,
+    paddingHorizontal: DS.space.sm + 1,
+    paddingVertical: DS.space.xs + 1,
+    borderRadius: DS.radius.sm + 1,
+  },
+  segmentLabel: { ...DS.type.caption1, fontWeight: '600' },
 
   overlay: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
