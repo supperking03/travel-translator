@@ -17,9 +17,10 @@ interface Props {
   selectedCode: string;
   onSelect: (code: string) => void;
   label?: string;
+  subtle?: boolean;
 }
 
-export function LanguageSelector({ selectedCode, onSelect, label }: Props) {
+export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Props) {
   const C      = useDSColors();
   const isDark = useDSIsDark();
   const [visible, setVisible] = useState(false);
@@ -51,18 +52,23 @@ export function LanguageSelector({ selectedCode, onSelect, label }: Props) {
     <>
       {/* ── Selector pill ──────────────────────────────────────────────── */}
       <TouchableOpacity
-        style={[styles.pill, { backgroundColor: C.surface, borderColor: C.border }, pillShadow]}
+        style={subtle
+          ? styles.pillSubtle
+          : [styles.pill, { backgroundColor: C.surface, borderColor: C.border }, pillShadow]}
         onPress={() => setVisible(true)}
         activeOpacity={0.7}
       >
-        {label && (
+        {!subtle && label && (
           <Text style={[styles.pillLabel, { color: C.primary }]}>{label}</Text>
         )}
-        <Text style={styles.pillFlag}>{selected?.flag ?? '🌐'}</Text>
-        <Text style={[styles.pillName, { color: C.textPrimary }]} numberOfLines={1}>
+        <Text style={subtle ? styles.pillFlagSubtle : styles.pillFlag}>{selected?.flag ?? '🌐'}</Text>
+        <Text
+          style={[subtle ? styles.pillNameSubtle : styles.pillName, { color: subtle ? C.textSecondary : C.textPrimary }]}
+          numberOfLines={1}
+        >
           {selected?.name ?? 'Select'}
         </Text>
-        <Ionicons name="chevron-down" size={12} color={C.textMuted} />
+        <Ionicons name="chevron-down" size={subtle ? 11 : 12} color={C.textMuted} />
       </TouchableOpacity>
 
       {/* ── Bottom-sheet modal ─────────────────────────────────────────── */}
@@ -158,7 +164,7 @@ export function LanguageSelector({ selectedCode, onSelect, label }: Props) {
 }
 
 const styles = StyleSheet.create({
-  // Pill
+  // Pill (default)
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -169,9 +175,20 @@ const styles = StyleSheet.create({
     borderRadius: DS.radius.md + 2,
     borderWidth: 1,
   },
-  pillLabel: { ...DS.type.label, textTransform: 'uppercase' },
-  pillFlag:  { fontSize: DS.icon.md },
-  pillName:  { flex: 1, ...DS.type.subhead, fontWeight: '600' },
+  pillLabel:    { ...DS.type.label, textTransform: 'uppercase' },
+  pillFlag:     { fontSize: DS.icon.md },
+  pillName:     { flex: 1, ...DS.type.subhead, fontWeight: '600' },
+
+  // Pill (subtle)
+  pillSubtle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DS.space.xs,
+    paddingHorizontal: DS.space.xs + 2,
+    paddingVertical: DS.space.xs,
+  },
+  pillFlagSubtle:   { fontSize: 15 },
+  pillNameSubtle:   { ...DS.type.footnote, fontWeight: '600' },
 
   // Modal
   overlay: { flex: 1, justifyContent: 'flex-end' },

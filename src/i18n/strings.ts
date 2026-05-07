@@ -70,8 +70,8 @@ export type AppStrings = {
 };
 
 const en: AppStrings = {
-  obHeadline:       'What language do you speak?',
-  obSub:            'We\'ll use this as your default source language.',
+  obHeadline:       'What\'s your native language?',
+  obSub:            'Choose your mother tongue — we\'ll display the app in this language.',
   obContinue:       'Continue',
   obHeroSub:        'Your AI travel companion. Speak the world.',
   obFeat1Title:     'Works offline anywhere',
@@ -82,7 +82,7 @@ const en: AppStrings = {
   obFeat3Desc:      'From Arabic to Vietnamese, AI-powered and accurate.',
   obStart:          'Start Translating',
   mSubtitle:        'Offline · AI-powered',
-  mPlaceholder:     'Tap to type or paste…',
+  mPlaceholder:     'Enter text to translate…',
   mTranslate:       'Translate',
   mTranslating:     'Translating…',
   mTypePrompt:      'Type something to translate',
@@ -137,8 +137,8 @@ const en: AppStrings = {
 };
 
 const vi: AppStrings = {
-  obHeadline:       'Bạn nói ngôn ngữ gì?',
-  obSub:            'Chúng tôi sẽ đặt đây là ngôn ngữ nguồn mặc định.',
+  obHeadline:       'Ngôn ngữ mẹ đẻ của bạn là gì?',
+  obSub:            'Chọn tiếng mẹ đẻ — chúng tôi sẽ hiển thị app bằng ngôn ngữ này.',
   obContinue:       'Tiếp tục',
   obHeroSub:        'Trợ lý du lịch AI của bạn. Nói chuyện với thế giới.',
   obFeat1Title:     'Dùng được offline ở bất kỳ đâu',
@@ -149,7 +149,7 @@ const vi: AppStrings = {
   obFeat3Desc:      'Từ tiếng Ả Rập đến tiếng Việt, được hỗ trợ bởi AI.',
   obStart:          'Bắt đầu dịch',
   mSubtitle:        'Offline · Hỗ trợ AI',
-  mPlaceholder:     'Nhấn để nhập hoặc dán văn bản…',
+  mPlaceholder:     'Nhập nội dung cần dịch…',
   mTranslate:       'Dịch',
   mTranslating:     'Đang dịch…',
   mTypePrompt:      'Nhập gì đó để dịch',
@@ -204,8 +204,8 @@ const vi: AppStrings = {
 };
 
 const es: AppStrings = {
-  obHeadline:       '¿Qué idioma hablas?',
-  obSub:            'Lo usaremos como tu idioma de origen predeterminado.',
+  obHeadline:       '¿Cuál es tu idioma nativo?',
+  obSub:            'Elige tu lengua materna — mostraremos la app en ese idioma.',
   obContinue:       'Continuar',
   obHeroSub:        'Tu compañero de viaje con IA. Habla con el mundo.',
   obFeat1Title:     'Funciona sin conexión',
@@ -216,7 +216,7 @@ const es: AppStrings = {
   obFeat3Desc:      'Del árabe al vietnamita, con IA y precisión.',
   obStart:          'Empezar a traducir',
   mSubtitle:        'Sin conexión · Con IA',
-  mPlaceholder:     'Toca para escribir o pegar…',
+  mPlaceholder:     'Escribe el texto a traducir…',
   mTranslate:       'Traducir',
   mTranslating:     'Traduciendo…',
   mTypePrompt:      'Escribe algo para traducir',
@@ -258,8 +258,8 @@ const es: AppStrings = {
 };
 
 const fr: AppStrings = {
-  obHeadline:       'Quelle langue parlez-vous ?',
-  obSub:            'Nous l\'utiliserons comme votre langue source par défaut.',
+  obHeadline:       'Quelle est votre langue maternelle ?',
+  obSub:            'Choisissez votre langue maternelle — l\'app s\'affichera dans cette langue.',
   obContinue:       'Continuer',
   obHeroSub:        'Votre compagnon de voyage IA. Parlez au monde.',
   obFeat1Title:     'Fonctionne hors ligne',
@@ -270,7 +270,7 @@ const fr: AppStrings = {
   obFeat3Desc:      'De l\'arabe au vietnamien, IA et précision.',
   obStart:          'Commencer à traduire',
   mSubtitle:        'Hors ligne · IA',
-  mPlaceholder:     'Appuyez pour saisir ou coller…',
+  mPlaceholder:     'Saisissez le texte à traduire…',
   mTranslate:       'Traduire',
   mTranslating:     'Traduction…',
   mTypePrompt:      'Saisissez quelque chose à traduire',
@@ -312,8 +312,8 @@ const fr: AppStrings = {
 };
 
 const de: AppStrings = {
-  obHeadline:       'Welche Sprache sprechen Sie?',
-  obSub:            'Wir setzen dies als Ihre Standard-Quellsprache.',
+  obHeadline:       'Was ist Ihre Muttersprache?',
+  obSub:            'Wählen Sie Ihre Muttersprache — die App wird in dieser Sprache angezeigt.',
   obContinue:       'Weiter',
   obHeroSub:        'Ihr KI-Reisebegleiter. Sprechen Sie mit der Welt.',
   obFeat1Title:     'Funktioniert offline',
@@ -324,7 +324,7 @@ const de: AppStrings = {
   obFeat3Desc:      'Von Arabisch bis Vietnamesisch, KI-gestützt.',
   obStart:          'Übersetzen starten',
   mSubtitle:        'Offline · KI-gestützt',
-  mPlaceholder:     'Tippen oder einfügen…',
+  mPlaceholder:     'Text zum Übersetzen eingeben…',
   mTranslate:       'Übersetzen',
   mTranslating:     'Übersetzt…',
   mTypePrompt:      'Geben Sie etwas ein',
@@ -366,8 +366,8 @@ const de: AppStrings = {
 };
 
 const it: AppStrings = {
-  obHeadline:       'Che lingua parli?',
-  obSub:            'La useremo come lingua sorgente predefinita.',
+  obHeadline:       'Qual è la tua lingua madre?',
+  obSub:            'Scegli la tua lingua madre — l\'app verrà mostrata in quella lingua.',
   obContinue:       'Continua',
   obHeroSub:        'Il tuo compagno di viaggio IA. Parla col mondo.',
   obFeat1Title:     'Funziona offline',
@@ -378,7 +378,7 @@ const it: AppStrings = {
   obFeat3Desc:      'Dall\'arabo al vietnamita, con IA e precisione.',
   obStart:          'Inizia a tradurre',
   mSubtitle:        'Offline · Con IA',
-  mPlaceholder:     'Tocca per digitare o incollare…',
+  mPlaceholder:     'Inserisci il testo da tradurre…',
   mTranslate:       'Traduci',
   mTranslating:     'Traduzione…',
   mTypePrompt:      'Scrivi qualcosa da tradurre',
@@ -420,8 +420,8 @@ const it: AppStrings = {
 };
 
 const pt: AppStrings = {
-  obHeadline:       'Que idioma você fala?',
-  obSub:            'Vamos usar isso como seu idioma de origem padrão.',
+  obHeadline:       'Qual é o seu idioma nativo?',
+  obSub:            'Escolha sua língua materna — o app será exibido nesse idioma.',
   obContinue:       'Continuar',
   obHeroSub:        'Seu companheiro de viagem com IA. Fale com o mundo.',
   obFeat1Title:     'Funciona offline',
@@ -432,7 +432,7 @@ const pt: AppStrings = {
   obFeat3Desc:      'Do árabe ao vietnamita, com IA e precisão.',
   obStart:          'Começar a traduzir',
   mSubtitle:        'Offline · Com IA',
-  mPlaceholder:     'Toque para digitar ou colar…',
+  mPlaceholder:     'Digite o texto a traduzir…',
   mTranslate:       'Traduzir',
   mTranslating:     'Traduzindo…',
   mTypePrompt:      'Digite algo para traduzir',
@@ -474,8 +474,8 @@ const pt: AppStrings = {
 };
 
 const ja: AppStrings = {
-  obHeadline:       'どの言語を話しますか？',
-  obSub:            'デフォルトの翻訳元言語として設定します。',
+  obHeadline:       'あなたの母国語は何ですか？',
+  obSub:            '母国語を選択してください — アプリがその言語で表示されます。',
   obContinue:       '続ける',
   obHeroSub:        'AIの旅行アシスタント。世界と話しましょう。',
   obFeat1Title:     'オフラインで使用可能',
@@ -486,7 +486,7 @@ const ja: AppStrings = {
   obFeat3Desc:      'アラビア語からベトナム語まで、AIが正確に翻訳。',
   obStart:          '翻訳を始める',
   mSubtitle:        'オフライン · AI対応',
-  mPlaceholder:     'タップして入力または貼り付け…',
+  mPlaceholder:     '翻訳するテキストを入力…',
   mTranslate:       '翻訳',
   mTranslating:     '翻訳中…',
   mTypePrompt:      '翻訳するテキストを入力',
@@ -528,8 +528,8 @@ const ja: AppStrings = {
 };
 
 const ko: AppStrings = {
-  obHeadline:       '어떤 언어를 사용하시나요?',
-  obSub:            '기본 소스 언어로 설정됩니다.',
+  obHeadline:       '모국어가 무엇인가요?',
+  obSub:            '모국어를 선택하세요 — 앱이 해당 언어로 표시됩니다.',
   obContinue:       '계속',
   obHeroSub:        'AI 여행 동반자. 세계와 소통하세요.',
   obFeat1Title:     '어디서나 오프라인 사용',
@@ -540,7 +540,7 @@ const ko: AppStrings = {
   obFeat3Desc:      '아랍어부터 베트남어까지, AI로 정확하게.',
   obStart:          '번역 시작',
   mSubtitle:        '오프라인 · AI 지원',
-  mPlaceholder:     '탭하여 입력하거나 붙여넣기…',
+  mPlaceholder:     '번역할 텍스트를 입력하세요…',
   mTranslate:       '번역',
   mTranslating:     '번역 중…',
   mTypePrompt:      '번역할 텍스트를 입력하세요',
@@ -582,8 +582,8 @@ const ko: AppStrings = {
 };
 
 const zh: AppStrings = {
-  obHeadline:       '您使用哪种语言？',
-  obSub:            '我们将把它设为您的默认源语言。',
+  obHeadline:       '您的母语是什么？',
+  obSub:            '选择您的母语 — 应用将以该语言显示。',
   obContinue:       '继续',
   obHeroSub:        '您的AI旅行助手。与世界对话。',
   obFeat1Title:     '随时随地离线使用',
@@ -594,7 +594,7 @@ const zh: AppStrings = {
   obFeat3Desc:      '从阿拉伯语到越南语，AI驱动，精准无误。',
   obStart:          '开始翻译',
   mSubtitle:        '离线 · AI驱动',
-  mPlaceholder:     '点击输入或粘贴…',
+  mPlaceholder:     '输入要翻译的文字…',
   mTranslate:       '翻译',
   mTranslating:     '翻译中…',
   mTypePrompt:      '请输入要翻译的内容',
@@ -636,8 +636,8 @@ const zh: AppStrings = {
 };
 
 const ar: AppStrings = {
-  obHeadline:       'ما اللغة التي تتحدثها؟',
-  obSub:            'سنستخدمها كلغة مصدر افتراضية.',
+  obHeadline:       'ما هي لغتك الأم؟',
+  obSub:            'اختر لغتك الأم — سيعرض التطبيق بهذه اللغة.',
   obContinue:       'متابعة',
   obHeroSub:        'رفيق سفرك الذكي. تحدث مع العالم.',
   obFeat1Title:     'يعمل بدون إنترنت',
@@ -648,7 +648,7 @@ const ar: AppStrings = {
   obFeat3Desc:      'من العربية إلى الفيتنامية، مدعومة بالذكاء الاصطناعي.',
   obStart:          'ابدأ الترجمة',
   mSubtitle:        'بدون إنترنت · ذكاء اصطناعي',
-  mPlaceholder:     'اضغط للكتابة أو اللصق…',
+  mPlaceholder:     'أدخل النص للترجمة…',
   mTranslate:       'ترجمة',
   mTranslating:     'جارٍ الترجمة…',
   mTypePrompt:      'اكتب شيئاً للترجمة',
@@ -690,8 +690,8 @@ const ar: AppStrings = {
 };
 
 const ru: AppStrings = {
-  obHeadline:       'На каком языке вы говорите?',
-  obSub:            'Мы установим его как язык источника по умолчанию.',
+  obHeadline:       'Какой у вас родной язык?',
+  obSub:            'Выберите родной язык — приложение будет отображаться на нём.',
   obContinue:       'Продолжить',
   obHeroSub:        'Ваш ИИ-помощник в путешествиях. Говорите с миром.',
   obFeat1Title:     'Работает без интернета',
@@ -702,7 +702,7 @@ const ru: AppStrings = {
   obFeat3Desc:      'От арабского до вьетнамского, на базе ИИ.',
   obStart:          'Начать перевод',
   mSubtitle:        'Офлайн · ИИ',
-  mPlaceholder:     'Нажмите, чтобы ввести или вставить…',
+  mPlaceholder:     'Введите текст для перевода…',
   mTranslate:       'Перевести',
   mTranslating:     'Перевод…',
   mTypePrompt:      'Введите текст для перевода',
@@ -744,8 +744,8 @@ const ru: AppStrings = {
 };
 
 const hi: AppStrings = {
-  obHeadline:       'आप कौन सी भाषा बोलते हैं?',
-  obSub:            'हम इसे आपकी डिफ़ॉल्ट स्रोत भाषा के रूप में सेट करेंगे।',
+  obHeadline:       'आपकी मातृभाषा क्या है?',
+  obSub:            'अपनी मातृभाषा चुनें — ऐप इस भाषा में दिखाया जाएगा।',
   obContinue:       'जारी रखें',
   obHeroSub:        'आपका AI यात्रा साथी। दुनिया से बात करें।',
   obFeat1Title:     'कहीं भी ऑफलाइन काम',
@@ -756,7 +756,7 @@ const hi: AppStrings = {
   obFeat3Desc:      'अरबी से वियतनामी तक, AI द्वारा सटीक अनुवाद।',
   obStart:          'अनुवाद शुरू करें',
   mSubtitle:        'ऑफलाइन · AI संचालित',
-  mPlaceholder:     'टाइप या पेस्ट करने के लिए टैप करें…',
+  mPlaceholder:     'अनुवाद के लिए पाठ दर्ज करें…',
   mTranslate:       'अनुवाद करें',
   mTranslating:     'अनुवाद हो रहा है…',
   mTypePrompt:      'अनुवाद के लिए कुछ टाइप करें',
@@ -798,8 +798,8 @@ const hi: AppStrings = {
 };
 
 const th: AppStrings = {
-  obHeadline:       'คุณพูดภาษาอะไร?',
-  obSub:            'เราจะใช้นี้เป็นภาษาต้นทางเริ่มต้นของคุณ',
+  obHeadline:       'ภาษาแม่ของคุณคืออะไร?',
+  obSub:            'เลือกภาษาแม่ของคุณ — แอปจะแสดงในภาษานั้น',
   obContinue:       'ต่อไป',
   obHeroSub:        'ผู้ช่วยท่องเที่ยว AI ของคุณ พูดคุยกับโลก',
   obFeat1Title:     'ใช้งานได้แบบออฟไลน์',
@@ -810,7 +810,7 @@ const th: AppStrings = {
   obFeat3Desc:      'จากภาษาอาหรับถึงเวียดนาม ขับเคลื่อนด้วย AI',
   obStart:          'เริ่มแปล',
   mSubtitle:        'ออฟไลน์ · AI',
-  mPlaceholder:     'แตะเพื่อพิมพ์หรือวาง…',
+  mPlaceholder:     'ป้อนข้อความที่ต้องการแปล…',
   mTranslate:       'แปล',
   mTranslating:     'กำลังแปล…',
   mTypePrompt:      'พิมพ์บางอย่างเพื่อแปล',
@@ -852,8 +852,8 @@ const th: AppStrings = {
 };
 
 const id: AppStrings = {
-  obHeadline:       'Bahasa apa yang Anda gunakan?',
-  obSub:            'Kami akan menggunakannya sebagai bahasa sumber default.',
+  obHeadline:       'Apa bahasa ibu Anda?',
+  obSub:            'Pilih bahasa ibu Anda — aplikasi akan ditampilkan dalam bahasa tersebut.',
   obContinue:       'Lanjutkan',
   obHeroSub:        'Teman perjalanan AI Anda. Bicara dengan dunia.',
   obFeat1Title:     'Bekerja offline di mana saja',
@@ -864,7 +864,7 @@ const id: AppStrings = {
   obFeat3Desc:      'Dari bahasa Arab hingga Vietnam, bertenaga AI.',
   obStart:          'Mulai Menerjemahkan',
   mSubtitle:        'Offline · Bertenaga AI',
-  mPlaceholder:     'Ketuk untuk mengetik atau menempel…',
+  mPlaceholder:     'Masukkan teks untuk diterjemahkan…',
   mTranslate:       'Terjemahkan',
   mTranslating:     'Menerjemahkan…',
   mTypePrompt:      'Ketik sesuatu untuk diterjemahkan',
@@ -906,8 +906,8 @@ const id: AppStrings = {
 };
 
 const nl: AppStrings = {
-  obHeadline:       'Welke taal spreek jij?',
-  obSub:            'We gebruiken dit als je standaard brontaal.',
+  obHeadline:       'Wat is je moedertaal?',
+  obSub:            'Kies je moedertaal — de app wordt in die taal weergegeven.',
   obContinue:       'Doorgaan',
   obHeroSub:        'Jouw AI-reisgezel. Spreek met de wereld.',
   obFeat1Title:     'Werkt overal offline',
@@ -918,7 +918,7 @@ const nl: AppStrings = {
   obFeat3Desc:      'Van Arabisch tot Vietnamees, AI-aangedreven.',
   obStart:          'Begin met vertalen',
   mSubtitle:        'Offline · AI-aangedreven',
-  mPlaceholder:     'Tik om te typen of plakken…',
+  mPlaceholder:     'Voer tekst in om te vertalen…',
   mTranslate:       'Vertalen',
   mTranslating:     'Bezig met vertalen…',
   mTypePrompt:      'Typ iets om te vertalen',

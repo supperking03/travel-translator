@@ -16,7 +16,6 @@ import { DS, useDSColors, useDSIsDark } from '@/constants/designSystem';
 import { useStore } from '@/store/useStore';
 import { useI18n } from '@/i18n/useI18n';
 import { getLanguageByCode } from '@/constants/languages';
-import { DEFAULT_SOURCE, DEFAULT_TARGET } from '@/constants/languages';
 
 const { width: W } = Dimensions.get('window');
 
@@ -123,7 +122,7 @@ export default function OnboardingScreen() {
 
   const finish = useCallback(() => {
     setSourceLang(nativeLang);
-    setTargetLang(nativeLang === DEFAULT_TARGET ? DEFAULT_SOURCE : DEFAULT_TARGET);
+    setTargetLang(nativeLang === 'en' ? 'vi' : 'en');
     setOnboardingComplete(true);
     router.replace('/');
   }, [nativeLang, setSourceLang, setTargetLang, setOnboardingComplete, router]);

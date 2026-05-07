@@ -39,10 +39,10 @@ function TranslateButton({
   colors: DSColors;
   isDark: boolean;
 }) {
-  const t      = useI18n();
-  const scale  = useRef(new Animated.Value(1)).current;
-  const onIn   = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 40 }).start();
-  const onOut  = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 20 }).start();
+  const t     = useI18n();
+  const scale = useRef(new Animated.Value(1)).current;
+  const onIn  = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 40 }).start();
+  const onOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 20 }).start();
 
   const isEmpty = disabled && !isTranslating;
 
@@ -58,7 +58,7 @@ function TranslateButton({
         style={[
           styles.translateBtn,
           isEmpty
-            ? { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.border }
+            ? { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border }
             : {
                 backgroundColor: isTranslating ? colors.primaryDark : colors.primary,
                 ...DS.shadow.level2(isDark),
@@ -73,18 +73,8 @@ function TranslateButton({
           </>
         ) : (
           <>
-            <Ionicons
-              name="language"
-              size={DS.icon.sm}
-              color={isEmpty ? colors.textMuted : colors.background}
-            />
-            <Text style={[styles.translateBtnText, {
-              color: isEmpty ? colors.textMuted : colors.background,
-              ...DS.type.subhead,
-              fontWeight: isEmpty ? '400' : '700',
-            }]}>
-              {isEmpty ? t.mTypePrompt : t.mTranslate}
-            </Text>
+            <Ionicons name="language" size={DS.icon.sm} color={isEmpty ? colors.textMuted : colors.background} />
+            <Text style={[styles.translateBtnText, { color: isEmpty ? colors.textMuted : colors.background }]}>{t.mTranslate}</Text>
           </>
         )}
       </Animated.View>
@@ -211,9 +201,6 @@ export default function TranslatorScreen() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isReadingImage, setIsReadingImage] = useState(false);
 
-  const swapAngle = useRef(0);
-  const swapAnim  = useRef(new Animated.Value(0)).current;
-
   const {
     sourceLang, targetLang,
     sourceText, translatedText,
@@ -225,16 +212,15 @@ export default function TranslatorScreen() {
     onboardingComplete,
   } = useStore();
 
+  const swapAngle = useRef(0);
+  const swapAnim  = useRef(new Animated.Value(0)).current;
+
   const { translate, isReady } = useLlama();
 
   const handleTranslate = useCallback(async () => {
     if (!sourceText.trim()) return;
     if (!isReady) {
       router.push('/settings?focus=download');
-      return;
-    }
-    if (sourceLang === targetLang) {
-      Alert.alert('Same Language', 'Please select different source and target languages.');
       return;
     }
     Keyboard.dismiss();
@@ -414,33 +400,6 @@ export default function TranslatorScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* ── Language selector ─────────────────────────────────────────── */}
-          <View style={[styles.langCard, { backgroundColor: C.surface, borderColor: C.border }, DS.shadow.level1(isDark)]}>
-            <View style={styles.langRow}>
-              <LanguageSelector selectedCode={sourceLang} onSelect={setSourceLang} label="FROM" />
-
-              <TouchableOpacity
-                style={[styles.swapBtn, { backgroundColor: C.accentSoft }]}
-                onPress={handleSwap}
-                activeOpacity={0.75}
-              >
-                <Animated.View style={{
-                  transform: [{
-                    rotate: swapAnim.interpolate({
-                      inputRange: [0, 360],
-                      outputRange: ['0deg', '360deg'],
-                      extrapolate: 'extend',
-                    }),
-                  }],
-                }}>
-                  <Ionicons name="swap-horizontal" size={DS.icon.md} color={C.primary} />
-                </Animated.View>
-              </TouchableOpacity>
-
-              <LanguageSelector selectedCode={targetLang} onSelect={setTargetLang} label="TO" />
-            </View>
-          </View>
-
           {/* ── Input ─────────────────────────────────────────────────────── */}
           <View style={[styles.inputCard, { backgroundColor: C.surface, borderColor: C.border }, DS.shadow.level1(isDark)]}>
             <TextInput
@@ -483,6 +442,31 @@ export default function TranslatorScreen() {
                   </TouchableOpacity>
                 )}
               </View>
+            </View>
+          </View>
+
+          {/* ── Language selector ─────────────────────────────────────────── */}
+          <View style={[styles.langCard, { backgroundColor: C.surface, borderColor: C.border }, DS.shadow.level1(isDark)]}>
+            <View style={styles.langRow}>
+              <LanguageSelector selectedCode={sourceLang} onSelect={setSourceLang} label="FROM" />
+              <TouchableOpacity
+                style={[styles.swapBtn, { backgroundColor: C.accentSoft }]}
+                onPress={handleSwap}
+                activeOpacity={0.75}
+              >
+                <Animated.View style={{
+                  transform: [{
+                    rotate: swapAnim.interpolate({
+                      inputRange: [0, 360],
+                      outputRange: ['0deg', '360deg'],
+                      extrapolate: 'extend',
+                    }),
+                  }],
+                }}>
+                  <Ionicons name="swap-horizontal" size={DS.icon.md} color={C.primary} />
+                </Animated.View>
+              </TouchableOpacity>
+              <LanguageSelector selectedCode={targetLang} onSelect={setTargetLang} label="TO" />
             </View>
           </View>
 
@@ -575,8 +559,8 @@ const styles = StyleSheet.create({
   textInput: {
     ...DS.type.body,
     padding: DS.space.md,
-    height: DS.control.inputMin + 30,
-    maxHeight: DS.control.inputMin + 30,
+    height: 100,
+    maxHeight: 100,
     textAlignVertical: 'top',
   },
   inputFooter: {
