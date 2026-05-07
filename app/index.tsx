@@ -400,7 +400,7 @@ export default function TranslatorScreen() {
           <View style={styles.navRow}>
             <View>
               <View style={styles.navTitleRow}>
-                <Text style={[styles.appTitle, { color: C.textPrimary }]}>Free Offline</Text>
+                <Text style={[styles.appTitle, { color: C.textPrimary }]}>AI Offline</Text>
                 <Text style={[styles.appTitleAccent, { color: C.primary }]}>Translator</Text>
               </View>
               <Text style={[styles.appSubtitle, { color: C.textMuted }]}>{t.mSubtitle}</Text>

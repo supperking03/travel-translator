@@ -176,7 +176,7 @@ export default function OnboardingScreen() {
     <View style={s.welcomeFlex}>
       <Text style={s.heroEmoji}>🌍</Text>
       <View style={s.heroTitleRow}>
-        <Text style={[s.heroWord, { color: C.textPrimary }]}>Free Offline</Text>
+        <Text style={[s.heroWord, { color: C.textPrimary }]}>AI Offline</Text>
         <Text style={[s.heroWord, { color: C.accent }]}>Translator</Text>
       </View>
       <Text style={[s.heroSub, { color: C.textSecondary }]}>{t.obHeroSub}</Text>
