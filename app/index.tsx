@@ -36,6 +36,36 @@ import { recognizeTextBlocksFromImage, TextBlock } from '@/utils/imageTextRecogn
 type TranslatedBlock = TextBlock & { translated: string };
 type ImageTranslatePhase = 'idle' | 'ocr' | 'translating' | 'done' | 'error';
 type ResultMode = 'text' | 'image';
+const OCR_TRANSLATION_BATCH_CHAR_LIMIT = 900;
+const OCR_TRANSLATION_BATCH_ITEM_LIMIT = 12;
+
+function splitBlocksForTranslation(blocks: TextBlock[]): TextBlock[][] {
+  const batches: TextBlock[][] = [];
+  let currentBatch: TextBlock[] = [];
+  let currentChars = 0;
+
+  for (const block of blocks) {
+    const blockChars = block.text.length;
+    const wouldOverflow =
+      currentBatch.length >= OCR_TRANSLATION_BATCH_ITEM_LIMIT ||
+      (currentBatch.length > 0 && currentChars + blockChars > OCR_TRANSLATION_BATCH_CHAR_LIMIT);
+
+    if (wouldOverflow) {
+      batches.push(currentBatch);
+      currentBatch = [];
+      currentChars = 0;
+    }
+
+    currentBatch.push(block);
+    currentChars += blockChars;
+  }
+
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
+  }
+
+  return batches;
+}
 
 async function batchTranslateBlocks(
   blocks: TextBlock[],
@@ -45,22 +75,31 @@ async function batchTranslateBlocks(
   if (blocks.length === 0) return [];
 
   const targetName = getLanguageByCode(targetLangCode)?.name ?? targetLangCode;
-  const numbered = blocks.map((block, index) => `${index + 1}. ${block.text}`).join('\n');
-  const prompt = `Translate each numbered item to ${targetName}. Reply only with the numbered translations, same format:\n${numbered}`;
-  const raw = await translate(prompt, 'auto', targetLangCode);
+  const batches = splitBlocksForTranslation(blocks);
+  const combined: string[] = [];
 
-  const result = new Array<string>(blocks.length).fill('');
-  for (const line of raw.split('\n')) {
-    const match = line.match(/^(\d+)[.)]\s*(.+)$/);
-    if (!match) continue;
+  for (const batch of batches) {
+    const numbered = batch.map((block, index) => `${index + 1}. ${block.text}`).join('\n');
+    const prompt = `Translate each numbered item to ${targetName}. Reply only with the numbered translations, same format:\n${numbered}`;
+    const raw = await translate(prompt, 'auto', targetLangCode);
 
-    const idx = parseInt(match[1], 10) - 1;
-    if (idx >= 0 && idx < blocks.length) {
-      result[idx] = match[2].trim();
+    const parsed = new Array<string>(batch.length).fill('');
+    for (const line of raw.split('\n')) {
+      const match = line.match(/^(\d+)[.)]\s*(.+)$/);
+      if (!match) continue;
+
+      const idx = parseInt(match[1], 10) - 1;
+      if (idx >= 0 && idx < batch.length) {
+        parsed[idx] = match[2].trim();
+      }
+    }
+
+    for (let i = 0; i < batch.length; i += 1) {
+      combined.push(parsed[i] || batch[i].text);
     }
   }
 
-  return result;
+  return combined;
 }
 
 // ─── Translate button ─────────────────────────────────────────────────────────

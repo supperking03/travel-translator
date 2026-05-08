@@ -19,6 +19,36 @@ const { width: SW, height: SH } = Dimensions.get('window');
 
 type TranslatedBlock = TextBlock & { translated: string };
 type Phase = 'ocr' | 'translating' | 'done' | 'error';
+const OCR_TRANSLATION_BATCH_CHAR_LIMIT = 900;
+const OCR_TRANSLATION_BATCH_ITEM_LIMIT = 12;
+
+function splitBlocksForTranslation(blocks: TextBlock[]): TextBlock[][] {
+  const batches: TextBlock[][] = [];
+  let currentBatch: TextBlock[] = [];
+  let currentChars = 0;
+
+  for (const block of blocks) {
+    const blockChars = block.text.length;
+    const wouldOverflow =
+      currentBatch.length >= OCR_TRANSLATION_BATCH_ITEM_LIMIT ||
+      (currentBatch.length > 0 && currentChars + blockChars > OCR_TRANSLATION_BATCH_CHAR_LIMIT);
+
+    if (wouldOverflow) {
+      batches.push(currentBatch);
+      currentBatch = [];
+      currentChars = 0;
+    }
+
+    currentBatch.push(block);
+    currentChars += blockChars;
+  }
+
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
+  }
+
+  return batches;
+}
 
 // ─── Batch translate all blocks in one model call ─────────────────────────────
 async function batchTranslate(
@@ -29,20 +59,29 @@ async function batchTranslate(
   if (blocks.length === 0) return [];
 
   const targetName = getLanguageByCode(targetLangCode)?.name ?? targetLangCode;
-  const numbered   = blocks.map((b, i) => `${i + 1}. ${b.text}`).join('\n');
-  const prompt     = `Translate each numbered item to ${targetName}. Reply only with the numbered translations, same format:\n${numbered}`;
+  const batches = splitBlocksForTranslation(blocks);
+  const combined: string[] = [];
 
-  const raw = await translate(prompt, 'auto', targetLangCode);
+  for (const batch of batches) {
+    const numbered = batch.map((b, i) => `${i + 1}. ${b.text}`).join('\n');
+    const prompt = `Translate each numbered item to ${targetName}. Reply only with the numbered translations, same format:\n${numbered}`;
+    const raw = await translate(prompt, 'auto', targetLangCode);
 
-  const result = new Array<string>(blocks.length).fill('');
-  for (const line of raw.split('\n')) {
-    const m = line.match(/^(\d+)[.)]\s*(.+)$/);
-    if (m) {
-      const idx = parseInt(m[1], 10) - 1;
-      if (idx >= 0 && idx < blocks.length) result[idx] = m[2].trim();
+    const parsed = new Array<string>(batch.length).fill('');
+    for (const line of raw.split('\n')) {
+      const m = line.match(/^(\d+)[.)]\s*(.+)$/);
+      if (m) {
+        const idx = parseInt(m[1], 10) - 1;
+        if (idx >= 0 && idx < batch.length) parsed[idx] = m[2].trim();
+      }
+    }
+
+    for (let i = 0; i < batch.length; i += 1) {
+      combined.push(parsed[i] || batch[i].text);
     }
   }
-  return result;
+
+  return combined;
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
