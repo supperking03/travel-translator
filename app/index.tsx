@@ -11,8 +11,10 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   Platform,
-  ActivityIndicator,
   Animated,
+  ActivityIndicator,
+  Image,
+  LayoutChangeEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, useRouter } from 'expo-router';
@@ -20,6 +22,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import * as Speech from 'expo-speech';
+import Svg, { Rect, Text as SvgText, G } from 'react-native-svg';
+import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-view';
 
 import { useStore } from '@/store/useStore';
 import { useLlama } from '@/hooks/useLlama';
@@ -27,7 +31,37 @@ import { LanguageSelector } from '@/components/LanguageSelector';
 import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem';
 import { getLanguageByCode } from '@/constants/languages';
 import { useI18n } from '@/i18n/useI18n';
-import { recognizeTextFromImage } from '@/utils/imageTextRecognition';
+import { recognizeTextBlocksFromImage, TextBlock } from '@/utils/imageTextRecognition';
+
+type TranslatedBlock = TextBlock & { translated: string };
+type ImageTranslatePhase = 'idle' | 'ocr' | 'translating' | 'done' | 'error';
+type ResultMode = 'text' | 'image';
+
+async function batchTranslateBlocks(
+  blocks: TextBlock[],
+  targetLangCode: string,
+  translate: (text: string, sourceLang: string, targetLang: string) => Promise<string>
+): Promise<string[]> {
+  if (blocks.length === 0) return [];
+
+  const targetName = getLanguageByCode(targetLangCode)?.name ?? targetLangCode;
+  const numbered = blocks.map((block, index) => `${index + 1}. ${block.text}`).join('\n');
+  const prompt = `Translate each numbered item to ${targetName}. Reply only with the numbered translations, same format:\n${numbered}`;
+  const raw = await translate(prompt, 'auto', targetLangCode);
+
+  const result = new Array<string>(blocks.length).fill('');
+  for (const line of raw.split('\n')) {
+    const match = line.match(/^(\d+)[.)]\s*(.+)$/);
+    if (!match) continue;
+
+    const idx = parseInt(match[1], 10) - 1;
+    if (idx >= 0 && idx < blocks.length) {
+      result[idx] = match[2].trim();
+    }
+  }
+
+  return result;
+}
 
 // ─── Translate button ─────────────────────────────────────────────────────────
 function TranslateButton({
@@ -84,7 +118,20 @@ function TranslateButton({
 
 // ─── Result card ──────────────────────────────────────────────────────────────
 function TranslationResultCard({
-  translatedText, targetLangCode, isSpeaking, onSpeak, onCopy, colors, isDark,
+  translatedText,
+  targetLangCode,
+  isSpeaking,
+  onSpeak,
+  onCopy,
+  colors,
+  isDark,
+  imagePreviewUri,
+  imagePreviewBlocks,
+  imageAspectRatio,
+  resultMode,
+  onToggleResultMode,
+  onPreviewTouchStart,
+  onPreviewTouchEnd,
 }: {
   translatedText: string;
   targetLangCode: string;
@@ -93,10 +140,24 @@ function TranslationResultCard({
   onCopy: () => void;
   colors: DSColors;
   isDark: boolean;
+  imagePreviewUri?: string | null;
+  imagePreviewBlocks: TranslatedBlock[];
+  imageAspectRatio?: number | null;
+  resultMode: ResultMode;
+  onToggleResultMode?: () => void;
+  onPreviewTouchStart?: () => void;
+  onPreviewTouchEnd?: () => void;
 }) {
   const t        = useI18n();
   const lang     = getLanguageByCode(targetLangCode);
   const canSpeak = !!lang?.ttsLocale;
+  const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
+  const hasImagePreview = !!imagePreviewUri && !!imageAspectRatio;
+
+  const handlePreviewLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setPreviewSize({ width, height });
+  }, []);
 
   return (
     <View style={[
@@ -116,12 +177,110 @@ function TranslationResultCard({
             {lang?.name ?? 'Unknown'}
           </Text>
         </View>
+        {hasImagePreview && onToggleResultMode && (
+          <TouchableOpacity
+            style={[styles.modeSwitchBtn, { backgroundColor: colors.accentSoft, borderColor: colors.primary + '28' }]}
+            onPress={onToggleResultMode}
+            activeOpacity={0.75}
+          >
+            <Ionicons
+              name={resultMode === 'image' ? 'document-text-outline' : 'image-outline'}
+              size={DS.icon.xs + 2}
+              color={colors.primary}
+            />
+            <Text style={[styles.modeSwitchText, { color: colors.primary }]}>
+              {resultMode === 'image'
+                ? (t.mViewText ?? 'View text')
+                : (t.mViewImage ?? 'View image')}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Translated text */}
-      <Text style={[styles.resultText, { color: colors.textPrimary }]} selectable>
-        {translatedText}
-      </Text>
+      {resultMode === 'image' && hasImagePreview ? (
+        <View style={styles.imageResultBody}>
+          <View
+            style={[styles.imagePreviewFrame, { backgroundColor: colors.background, aspectRatio: imageAspectRatio }]}
+            onLayout={handlePreviewLayout}
+            onTouchStart={onPreviewTouchStart}
+            onTouchEnd={onPreviewTouchEnd}
+            onTouchCancel={onPreviewTouchEnd}
+          >
+            {previewSize.width > 0 && previewSize.height > 0 && (
+              <ReactNativeZoomableView
+                maxZoom={5}
+                minZoom={1}
+                zoomStep={0.5}
+                initialZoom={1}
+                bindToBorders={false}
+                style={styles.zoomablePreview}
+                contentWidth={previewSize.width}
+                contentHeight={previewSize.height}
+              >
+                <View style={{ width: previewSize.width, height: previewSize.height }}>
+                  <Image
+                    source={{ uri: imagePreviewUri }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode="contain"
+                  />
+
+                  {imagePreviewBlocks.length > 0 && (
+                    <Svg
+                      style={StyleSheet.absoluteFill}
+                      width={previewSize.width}
+                      height={previewSize.height}
+                    >
+                      {imagePreviewBlocks.map((block, index) => {
+                        const x = block.x * previewSize.width;
+                        const y = block.y * previewSize.height;
+                        const width = block.width * previewSize.width;
+                        const height = block.height * previewSize.height;
+                        const fontSize = Math.max(8, Math.min(height * 0.68, 15));
+
+                        return (
+                          <G key={`${index}-${block.text}`}>
+                            <Rect
+                              x={x}
+                              y={y}
+                              width={width}
+                              height={height}
+                              fill="white"
+                              opacity={0.9}
+                              rx={3}
+                            />
+                            <SvgText
+                              x={x + 3}
+                              y={y + height * 0.75}
+                              fontSize={fontSize}
+                              fill="#0F172A"
+                              fontWeight="bold"
+                            >
+                              {block.translated}
+                            </SvgText>
+                          </G>
+                        );
+                      })}
+                    </Svg>
+                  )}
+                </View>
+              </ReactNativeZoomableView>
+            )}
+          </View>
+
+          {imagePreviewBlocks.length === 0 && (
+            <View style={[styles.inlineNotice, { backgroundColor: colors.warningSoft }]}>
+              <Ionicons name="scan-outline" size={18} color={colors.warning} />
+              <Text style={[styles.inlineNoticeText, { color: colors.warning }]}>
+                {t.mNoTextFound ?? 'No text found in this image.'}
+              </Text>
+            </View>
+          )}
+        </View>
+      ) : (
+        <Text style={[styles.resultText, { color: colors.textPrimary }]} selectable>
+          {translatedText}
+        </Text>
+      )}
 
       {/* Action chips */}
       <View style={[styles.resultActions, { borderTopColor: colors.border }]}>
@@ -174,7 +333,13 @@ export default function TranslatorScreen() {
   const router  = useRouter();
   const inputRef = useRef<TextInput>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isReadingImage, setIsReadingImage] = useState(false);
+  const [imagePhase, setImagePhase] = useState<ImageTranslatePhase>('idle');
+  const [imageError, setImageError] = useState('');
+  const [imagePreviewUri, setImagePreviewUri] = useState<string | null>(null);
+  const [imagePreviewBlocks, setImagePreviewBlocks] = useState<TranslatedBlock[]>([]);
+  const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
+  const [resultMode, setResultMode] = useState<ResultMode>('text');
+  const [isPreviewTouchActive, setIsPreviewTouchActive] = useState(false);
 
   const {
     sourceLang, targetLang,
@@ -192,6 +357,16 @@ export default function TranslatorScreen() {
 
   const { translate, isReady } = useLlama();
 
+  const clearImagePreview = useCallback(() => {
+    setImagePhase('idle');
+    setImageError('');
+    setImagePreviewUri(null);
+    setImagePreviewBlocks([]);
+    setImageAspectRatio(null);
+    setResultMode('text');
+    setIsPreviewTouchActive(false);
+  }, []);
+
   const handleTranslate = useCallback(async () => {
     if (!sourceText.trim()) return;
     if (!isReady) {
@@ -200,6 +375,7 @@ export default function TranslatorScreen() {
     }
     Keyboard.dismiss();
     try {
+      clearImagePreview();
       setIsTranslating(true);
       setTranslatedText('');
       const result = await translate(sourceText, sourceLang, targetLang);
@@ -211,41 +387,88 @@ export default function TranslatorScreen() {
     } finally {
       setIsTranslating(false);
     }
-  }, [sourceText, sourceLang, targetLang, isReady, translate, setIsTranslating, setTranslatedText, addHistory, router]);
+    setResultMode('text');
+  }, [sourceText, sourceLang, targetLang, isReady, translate, setIsTranslating, setTranslatedText, addHistory, router, clearImagePreview]);
 
   const handleCopy = useCallback(async () => {
     if (!translatedText) return;
     await Clipboard.setStringAsync(translatedText);
     Alert.alert(t.mCopied, '');
-  }, [translatedText]);
+  }, [translatedText, t.mCopied]);
 
   const handleClear = useCallback(() => {
+    clearImagePreview();
     setSourceText('');
     setTranslatedText('');
     setIsSpeaking(false);
     inputRef.current?.focus();
-  }, [setSourceText, setTranslatedText]);
+  }, [clearImagePreview, setSourceText, setTranslatedText]);
 
-  const handleRecognizedImage = useCallback(async (imageUri: string) => {
+  const handleSourceTextChange = useCallback((text: string) => {
+    if (imagePreviewUri) {
+      clearImagePreview();
+    }
+    setSourceText(text);
+  }, [clearImagePreview, imagePreviewUri, setSourceText]);
+
+  const processImageTranslation = useCallback(async (uri: string) => {
+    if (!isReady) {
+      router.push('/settings?focus=download');
+      return;
+    }
+
+    Keyboard.dismiss();
+    setIsSpeaking(false);
+    setIsTranslating(false);
+    setImageError('');
+    setImagePreviewUri(uri);
+    setImagePreviewBlocks([]);
+    setResultMode('image');
+    setTranslatedText('');
+
+    Image.getSize(
+      uri,
+      (width, height) => setImageAspectRatio(width > 0 && height > 0 ? width / height : 1),
+      () => setImageAspectRatio(1)
+    );
+
     try {
-      setIsReadingImage(true);
-      const extracted = (await recognizeTextFromImage(imageUri)).trim();
+      setImagePhase('ocr');
+      const rawBlocks = await recognizeTextBlocksFromImage(uri, sourceLang);
 
-      if (!extracted) {
-        Alert.alert(t.mNoTextFound ?? 'No text found in this image.');
+      if (rawBlocks.length === 0) {
+        setSourceText('');
+        setTranslatedText('');
+        setImagePreviewBlocks([]);
+        setImagePhase('done');
         return;
       }
 
-      setSourceText(extracted);
-      setTranslatedText('');
-      inputRef.current?.focus();
+      setImagePhase('translating');
+      const translations = await batchTranslateBlocks(rawBlocks, targetLang, translate);
+      const translatedBlocks = rawBlocks.map((block, index) => ({
+        ...block,
+        translated: translations[index] || block.text,
+      }));
+      const combinedSource = rawBlocks.map((block) => block.text).join('\n');
+      const combinedTranslated = translatedBlocks.map((block) => block.translated).join('\n');
+
+      setImagePreviewBlocks(translatedBlocks);
+      setSourceText(combinedSource);
+      setTranslatedText(combinedTranslated);
+      addHistory({
+        sourceText: combinedSource,
+        translatedText: combinedTranslated,
+        sourceLang: 'auto',
+        targetLang,
+      });
+      setImagePhase('done');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to read text from image.';
-      Alert.alert('Image Text Error', message);
-    } finally {
-      setIsReadingImage(false);
+      setImageError(err instanceof Error ? err.message : 'Image translation failed');
+      setImagePhase('error');
     }
-  }, [setSourceText, setTranslatedText, t.mNoTextFound]);
+  }, [addHistory, isReady, router, setIsTranslating, setSourceText, setTranslatedText, sourceLang, targetLang, translate]);
+
 
   const handlePickPhoto = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -265,8 +488,8 @@ export default function TranslatorScreen() {
     });
 
     if (result.canceled || !result.assets[0]?.uri) return;
-    await handleRecognizedImage(result.assets[0].uri);
-  }, [handleRecognizedImage, t.mPhotoPermissionDesc, t.mPhotoPermissionTitle]);
+    await processImageTranslation(result.assets[0].uri);
+  }, [processImageTranslation, t.mPhotoPermissionDesc, t.mPhotoPermissionTitle]);
 
   const handleTakePhoto = useCallback(async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -285,8 +508,8 @@ export default function TranslatorScreen() {
     });
 
     if (result.canceled || !result.assets[0]?.uri) return;
-    await handleRecognizedImage(result.assets[0].uri);
-  }, [handleRecognizedImage, t.mCameraPermissionDesc, t.mCameraPermissionTitle]);
+    await processImageTranslation(result.assets[0].uri);
+  }, [processImageTranslation, t.mCameraPermissionDesc, t.mCameraPermissionTitle]);
 
   const handleImageOptions = useCallback(() => {
     ActionSheetIOS.showActionSheetWithOptions(
@@ -338,7 +561,10 @@ export default function TranslatorScreen() {
     }).start();
   }, [swapLanguages, swapAnim]);
 
-  const charNearLimit = sourceText.length > 800;
+  const charNearLimit = sourceText.length > 9000;
+  const isImageProcessing = imagePhase === 'ocr' || imagePhase === 'translating';
+  const shouldShowResult = translatedText !== '' || isTranslating || imagePhase !== 'idle';
+  const shouldLockPageScroll = isPreviewTouchActive && resultMode === 'image' && !!imagePreviewUri && !isImageProcessing;
 
   if (!onboardingComplete) return <Redirect href="/onboarding" />;
 
@@ -352,6 +578,7 @@ export default function TranslatorScreen() {
         <ScrollView
           style={styles.flex}
           contentContainerStyle={styles.scroll}
+          scrollEnabled={!shouldLockPageScroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -382,15 +609,15 @@ export default function TranslatorScreen() {
               placeholder={t.mPlaceholder}
               placeholderTextColor={C.textMuted}
               value={sourceText}
-              onChangeText={setSourceText}
+              onChangeText={handleSourceTextChange}
               multiline
-              maxLength={1000}
+              maxLength={10000}
               textAlignVertical="top"
             />
             <View style={[styles.inputFooter, { borderTopColor: C.border }]}>
               {charNearLimit ? (
                 <Text style={[styles.charCount, { color: C.warning, fontWeight: '600' }]}>
-                  {sourceText.length}/1000
+                  {sourceText.length}/10000
                 </Text>
               ) : (
                 <View />
@@ -398,14 +625,9 @@ export default function TranslatorScreen() {
               <View style={styles.inputActions}>
                 <TouchableOpacity
                   onPress={handleImageOptions}
-                  disabled={isReadingImage}
                   hitSlop={{ top: DS.space.sm, bottom: DS.space.sm, left: DS.space.sm, right: DS.space.sm }}
                 >
-                  {isReadingImage ? (
-                    <ActivityIndicator size="small" color={C.primary} />
-                  ) : (
-                    <Ionicons name="image-outline" size={20} color={C.primary} />
-                  )}
+                  <Ionicons name="image-outline" size={20} color={C.primary} />
                 </TouchableOpacity>
                 {sourceText.length > 0 && (
                   <TouchableOpacity onPress={handleClear} hitSlop={{ top: DS.space.sm, bottom: DS.space.sm, left: DS.space.sm, right: DS.space.sm }}>
@@ -451,13 +673,23 @@ export default function TranslatorScreen() {
           />
 
           {/* ── Result / Loading ──────────────────────────────────────────── */}
-          {(translatedText !== '' || isTranslating) && (
+          {shouldShowResult && (
             <View>
-              {isTranslating && translatedText === '' ? (
+              {(isTranslating && translatedText === '') || isImageProcessing ? (
                 <View style={[styles.loadingCard, { backgroundColor: C.surface, borderColor: C.border }, DS.shadow.level2(isDark)]}>
                   <ActivityIndicator size="large" color={C.primary} />
-                  <Text style={[styles.loadingTitle, { color: C.textPrimary }]}>{t.mTranslating}</Text>
+                  <Text style={[styles.loadingTitle, { color: C.textPrimary }]}>
+                    {isImageProcessing
+                      ? (imagePhase === 'ocr' ? (t.mReadingText ?? 'Reading text from image…') : t.mTranslating)
+                      : t.mTranslating}
+                  </Text>
                   <Text style={[styles.loadingSub, { color: C.textMuted }]}>{t.mLoadingSub}</Text>
+                </View>
+              ) : imagePhase === 'error' ? (
+                <View style={[styles.loadingCard, { backgroundColor: C.surface, borderColor: C.danger + '35' }, DS.shadow.level2(isDark)]}>
+                  <Ionicons name="alert-circle-outline" size={42} color={C.danger} />
+                  <Text style={[styles.loadingTitle, { color: C.textPrimary }]}>Image translation failed</Text>
+                  <Text style={[styles.loadingSub, { color: C.textMuted, textAlign: 'center' }]}>{imageError}</Text>
                 </View>
               ) : (
                 <TranslationResultCard
@@ -468,6 +700,15 @@ export default function TranslatorScreen() {
                   onCopy={handleCopy}
                   colors={C}
                   isDark={isDark}
+                  imagePreviewUri={imagePreviewUri}
+                  imagePreviewBlocks={imagePreviewBlocks}
+                  imageAspectRatio={imageAspectRatio}
+                  resultMode={resultMode}
+                  onPreviewTouchStart={() => setIsPreviewTouchActive(true)}
+                  onPreviewTouchEnd={() => setIsPreviewTouchActive(false)}
+                  onToggleResultMode={imagePreviewUri ? () => {
+                    setResultMode((current) => current === 'image' ? 'text' : 'image');
+                  } : undefined}
                 />
               )}
             </View>
@@ -595,12 +836,44 @@ const styles = StyleSheet.create({
   resultHeaderMeta: { flex: 1 },
   resultLangLabel:  { ...DS.type.label },
   resultLangName:   { ...DS.type.subhead, fontWeight: '700', marginTop: 1 },
+  modeSwitchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DS.space.xs,
+    paddingHorizontal: DS.space.sm,
+    paddingVertical: DS.space.xs + 1,
+    borderRadius: DS.radius.full,
+    borderWidth: 1,
+  },
+  modeSwitchText: { ...DS.type.caption1, fontWeight: '700' },
   resultText: {
     ...DS.type.title3,
     fontWeight: '500',
     padding: DS.space.md,
     paddingTop: DS.space.sm + DS.space.xs,
   },
+  imageResultBody: {
+    padding: DS.space.md,
+    gap: DS.space.sm,
+  },
+  imagePreviewFrame: {
+    width: '100%',
+    overflow: 'hidden',
+    borderRadius: DS.radius.lg,
+    position: 'relative',
+  },
+  zoomablePreview: {
+    flex: 1,
+  },
+  inlineNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DS.space.sm,
+    paddingHorizontal: DS.space.sm + DS.space.xs,
+    paddingVertical: DS.space.sm,
+    borderRadius: DS.radius.md,
+  },
+  inlineNoticeText: { ...DS.type.footnote, fontWeight: '600', flex: 1 },
   resultActions: {
     flexDirection: 'row',
     gap: DS.space.sm,

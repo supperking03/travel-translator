@@ -1,21 +1,36 @@
 import { NativeModules, Platform } from 'react-native';
 
+export type TextBlock = {
+  text:   string;
+  x:      number; // normalized 0–1, top-left origin
+  y:      number;
+  width:  number;
+  height: number;
+};
+
 type TextRecognitionModuleShape = {
-  recognizeText: (imageUri: string) => Promise<string>;
+  recognizeText:          (imageUri: string, sourceLangCode?: string) => Promise<string>;
+  recognizeTextWithBoxes: (imageUri: string, sourceLangCode?: string) => Promise<TextBlock[]>;
 };
 
 const { TextRecognitionModule } = NativeModules as {
   TextRecognitionModule?: TextRecognitionModuleShape;
 };
 
-export async function recognizeTextFromImage(imageUri: string): Promise<string> {
+function assertAvailable(): TextRecognitionModuleShape {
   if (Platform.OS !== 'ios') {
-    throw new Error('Offline image text recognition is currently available on iOS only.');
+    throw new Error('Offline image text recognition is available on iOS only.');
   }
-
-  if (!TextRecognitionModule?.recognizeText) {
-    throw new Error('Text recognition module is not available.');
+  if (!TextRecognitionModule) {
+    throw new Error('TextRecognitionModule is not available.');
   }
+  return TextRecognitionModule;
+}
 
-  return TextRecognitionModule.recognizeText(imageUri);
+export async function recognizeTextFromImage(imageUri: string, sourceLangCode?: string): Promise<string> {
+  return assertAvailable().recognizeText(imageUri, sourceLangCode);
+}
+
+export async function recognizeTextBlocksFromImage(imageUri: string, sourceLangCode?: string): Promise<TextBlock[]> {
+  return assertAvailable().recognizeTextWithBoxes(imageUri, sourceLangCode);
 }

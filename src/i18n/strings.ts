@@ -29,6 +29,8 @@ export type AppStrings = {
   mTakePhoto?: string;
   mReadingText?: string;
   mNoTextFound?: string;
+  mViewImage?: string;
+  mViewText?: string;
   mCameraPermissionTitle?: string;
   mCameraPermissionDesc?: string;
   mPhotoPermissionTitle?: string;
@@ -98,6 +100,8 @@ const en: AppStrings = {
   mTakePhoto:       'Camera',
   mReadingText:     'Reading text from image…',
   mNoTextFound:     'No text found in this image.',
+  mViewImage:       'View image',
+  mViewText:        'View text',
   mCameraPermissionTitle: 'Camera permission required',
   mCameraPermissionDesc:  'Allow camera access to take a photo for translation.',
   mPhotoPermissionTitle:  'Photo access required',
@@ -165,6 +169,8 @@ const vi: AppStrings = {
   mTakePhoto:       'Chụp ảnh',
   mReadingText:     'Đang đọc chữ từ ảnh…',
   mNoTextFound:     'Không tìm thấy chữ trong ảnh này.',
+  mViewImage:       'Xem ảnh',
+  mViewText:        'Xem chữ',
   mCameraPermissionTitle: 'Cần quyền camera',
   mCameraPermissionDesc:  'Cho phép dùng camera để chụp ảnh và dịch.',
   mPhotoPermissionTitle:  'Cần quyền truy cập ảnh',
