@@ -7,6 +7,7 @@ import {
   Dimensions,
   Animated,
   ScrollView,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -173,9 +174,9 @@ export default function OnboardingScreen() {
   // ── Step 1: welcome + core values ───────────────────────────────────────────
   const renderStep1 = () => (
     <View style={s.welcomeFlex}>
-      <Text style={s.heroEmoji}>🌍</Text>
+      <Image source={require('../assets/icon.png')} style={s.heroLogo} resizeMode="contain" />
       <View style={s.heroTitleRow}>
-        <Text style={[s.heroWord, { color: C.textPrimary }]}>AI Offline</Text>
+        <Text style={[s.heroWord, { color: C.textPrimary }]}>Nomad</Text>
         <Text style={[s.heroWord, { color: C.accent }]}>Translator</Text>
       </View>
       <Text style={[s.heroSub, { color: C.textSecondary }]}>{t.obHeroSub}</Text>
@@ -275,7 +276,7 @@ const s = StyleSheet.create({
     gap: DS.space.md,
     paddingBottom: DS.space.lg,
   },
-  heroEmoji:    { fontSize: 64 },
+  heroLogo:     { width: 72, height: 72, borderRadius: 18 },
   heroTitleRow: { flexDirection: 'row', gap: DS.space.xs + 2, alignItems: 'baseline' },
   heroWord:     { ...DS.type.title1, fontWeight: '800' },
   heroSub:      { ...DS.type.subhead, textAlign: 'center', maxWidth: 260 },

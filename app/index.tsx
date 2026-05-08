@@ -5,6 +5,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   ScrollView,
   StyleSheet,
   Alert,
@@ -20,9 +21,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as Speech from 'expo-speech';
-import Svg, { Rect, Text as SvgText, G } from 'react-native-svg';
 import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-view';
 
 import { useStore } from '@/store/useStore';
@@ -33,73 +35,109 @@ import { getLanguageByCode } from '@/constants/languages';
 import { useI18n } from '@/i18n/useI18n';
 import { recognizeTextBlocksFromImage, TextBlock } from '@/utils/imageTextRecognition';
 
-type TranslatedBlock = TextBlock & { translated: string };
+type TranslatedBlock = TextBlock & { translated: string; isPending: boolean };
 type ImageTranslatePhase = 'idle' | 'ocr' | 'translating' | 'done' | 'error';
 type ResultMode = 'text' | 'image';
 const OCR_TRANSLATION_BATCH_CHAR_LIMIT = 900;
 const OCR_TRANSLATION_BATCH_ITEM_LIMIT = 12;
+const SUPPORTED_TEXT_FILE_EXTENSIONS = new Set([
+  'txt', 'md', 'csv', 'json', 'xml', 'html', 'htm', 'log', 'yaml', 'yml',
+]);
 
-function splitBlocksForTranslation(blocks: TextBlock[]): TextBlock[][] {
-  const batches: TextBlock[][] = [];
+type TranslationBatch = {
+  indexes: number[];
+  blocks: TextBlock[];
+};
+
+function getAdaptiveOverlayFontSize(block: TranslatedBlock, baseFontSize: number): number {
+  if (block.isPending) return baseFontSize;
+
+  const sourceLength = Math.max(block.text.trim().length, 1);
+  const translatedLength = Math.max(block.translated.trim().length, 1);
+  const growthRatio = translatedLength / sourceLength;
+
+  if (growthRatio <= 1.15) {
+    return baseFontSize;
+  }
+
+  if (growthRatio >= 2.4) {
+    return Math.max(7, baseFontSize * 0.62);
+  }
+
+  if (growthRatio >= 1.8) {
+    return Math.max(7.5, baseFontSize * 0.72);
+  }
+
+  if (growthRatio >= 1.45) {
+    return Math.max(8, baseFontSize * 0.82);
+  }
+
+  return Math.max(8.5, baseFontSize * 0.9);
+}
+
+function splitBlocksForTranslation(blocks: TextBlock[]): TranslationBatch[] {
+  const batches: TranslationBatch[] = [];
   let currentBatch: TextBlock[] = [];
+  let currentIndexes: number[] = [];
   let currentChars = 0;
 
-  for (const block of blocks) {
+  for (const [index, block] of blocks.entries()) {
     const blockChars = block.text.length;
     const wouldOverflow =
       currentBatch.length >= OCR_TRANSLATION_BATCH_ITEM_LIMIT ||
       (currentBatch.length > 0 && currentChars + blockChars > OCR_TRANSLATION_BATCH_CHAR_LIMIT);
 
     if (wouldOverflow) {
-      batches.push(currentBatch);
+      batches.push({ indexes: currentIndexes, blocks: currentBatch });
       currentBatch = [];
+      currentIndexes = [];
       currentChars = 0;
     }
 
     currentBatch.push(block);
+    currentIndexes.push(index);
     currentChars += blockChars;
   }
 
   if (currentBatch.length > 0) {
-    batches.push(currentBatch);
+    batches.push({ indexes: currentIndexes, blocks: currentBatch });
   }
 
   return batches;
 }
 
-async function batchTranslateBlocks(
+function isReadableTextFile(asset: DocumentPicker.DocumentPickerAsset): boolean {
+  const mimeType = asset.mimeType?.toLowerCase() ?? '';
+  if (mimeType.startsWith('text/')) return true;
+  if (mimeType.includes('json') || mimeType.includes('xml')) return true;
+
+  const fileName = asset.name?.toLowerCase() ?? '';
+  const ext = fileName.includes('.') ? fileName.split('.').pop() ?? '' : '';
+  return SUPPORTED_TEXT_FILE_EXTENSIONS.has(ext);
+}
+
+async function translateBlockBatch(
   blocks: TextBlock[],
   targetLangCode: string,
   translate: (text: string, sourceLang: string, targetLang: string) => Promise<string>
 ): Promise<string[]> {
-  if (blocks.length === 0) return [];
-
   const targetName = getLanguageByCode(targetLangCode)?.name ?? targetLangCode;
-  const batches = splitBlocksForTranslation(blocks);
-  const combined: string[] = [];
+  const numbered = blocks.map((block, index) => `${index + 1}. ${block.text}`).join('\n');
+  const prompt = `Translate each numbered item to ${targetName}. Reply only with the numbered translations, same format:\n${numbered}`;
+  const raw = await translate(prompt, 'auto', targetLangCode);
 
-  for (const batch of batches) {
-    const numbered = batch.map((block, index) => `${index + 1}. ${block.text}`).join('\n');
-    const prompt = `Translate each numbered item to ${targetName}. Reply only with the numbered translations, same format:\n${numbered}`;
-    const raw = await translate(prompt, 'auto', targetLangCode);
+  const parsed = new Array<string>(blocks.length).fill('');
+  for (const line of raw.split('\n')) {
+    const match = line.match(/^(\d+)[.)]\s*(.+)$/);
+    if (!match) continue;
 
-    const parsed = new Array<string>(batch.length).fill('');
-    for (const line of raw.split('\n')) {
-      const match = line.match(/^(\d+)[.)]\s*(.+)$/);
-      if (!match) continue;
-
-      const idx = parseInt(match[1], 10) - 1;
-      if (idx >= 0 && idx < batch.length) {
-        parsed[idx] = match[2].trim();
-      }
-    }
-
-    for (let i = 0; i < batch.length; i += 1) {
-      combined.push(parsed[i] || batch[i].text);
+    const idx = parseInt(match[1], 10) - 1;
+    if (idx >= 0 && idx < blocks.length) {
+      parsed[idx] = match[2].trim();
     }
   }
 
-  return combined;
+  return parsed.map((item, index) => item || blocks[index].text);
 }
 
 // ─── Translate button ─────────────────────────────────────────────────────────
@@ -168,6 +206,9 @@ function TranslationResultCard({
   imagePreviewBlocks,
   imageAspectRatio,
   resultMode,
+  imagePhase,
+  imageTranslatedCount,
+  imageTotalCount,
   onToggleResultMode,
   onPreviewTouchStart,
   onPreviewTouchEnd,
@@ -183,6 +224,9 @@ function TranslationResultCard({
   imagePreviewBlocks: TranslatedBlock[];
   imageAspectRatio?: number | null;
   resultMode: ResultMode;
+  imagePhase: ImageTranslatePhase;
+  imageTranslatedCount: number;
+  imageTotalCount: number;
   onToggleResultMode?: () => void;
   onPreviewTouchStart?: () => void;
   onPreviewTouchEnd?: () => void;
@@ -191,11 +235,30 @@ function TranslationResultCard({
   const lang     = getLanguageByCode(targetLangCode);
   const canSpeak = !!lang?.ttsLocale;
   const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
+  const [selectedOverlayKey, setSelectedOverlayKey] = useState<string | null>(null);
   const hasImagePreview = !!imagePreviewUri && !!imageAspectRatio;
 
   const handlePreviewLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
     setPreviewSize({ width, height });
+  }, []);
+
+  const handleOverlayPress = useCallback((block: TranslatedBlock, overlayKey: string) => {
+    if (block.isPending || !block.translated.trim()) return;
+    setSelectedOverlayKey(overlayKey);
+    Alert.alert(
+      block.text || 'Translation',
+      block.translated,
+      [
+        {
+          text: 'OK',
+          onPress: () => setSelectedOverlayKey(null),
+        },
+      ],
+      {
+        onDismiss: () => setSelectedOverlayKey(null),
+      }
+    );
   }, []);
 
   return (
@@ -238,6 +301,14 @@ function TranslationResultCard({
 
       {resultMode === 'image' && hasImagePreview ? (
         <View style={styles.imageResultBody}>
+          {imagePhase === 'translating' && imageTotalCount > 0 && (
+            <View style={[styles.imageProgressBanner, { backgroundColor: colors.accentSoft, borderColor: colors.primary + '28' }]}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={[styles.imageProgressText, { color: colors.primary }]}>
+                {`Translated ${imageTranslatedCount}/${imageTotalCount}`}
+              </Text>
+            </View>
+          )}
           <View
             style={[styles.imagePreviewFrame, { backgroundColor: colors.background, aspectRatio: imageAspectRatio }]}
             onLayout={handlePreviewLayout}
@@ -263,44 +334,60 @@ function TranslationResultCard({
                     resizeMode="contain"
                   />
 
-                  {imagePreviewBlocks.length > 0 && (
-                    <Svg
-                      style={StyleSheet.absoluteFill}
-                      width={previewSize.width}
-                      height={previewSize.height}
-                    >
-                      {imagePreviewBlocks.map((block, index) => {
-                        const x = block.x * previewSize.width;
-                        const y = block.y * previewSize.height;
-                        const width = block.width * previewSize.width;
-                        const height = block.height * previewSize.height;
-                        const fontSize = Math.max(8, Math.min(height * 0.68, 15));
+                  {imagePreviewBlocks.map((block, index) => {
+                    const overlayKey = `${index}-${block.text}`;
+                    const left = block.x * previewSize.width;
+                    const top = block.y * previewSize.height;
+                    const width = block.width * previewSize.width;
+                    const height = block.height * previewSize.height;
+                    const baseFontSize = Math.max(8, Math.min(height * 0.68, 15));
+                    const fontSize = getAdaptiveOverlayFontSize(block, baseFontSize);
+                    const isSelected = selectedOverlayKey === overlayKey;
 
-                        return (
-                          <G key={`${index}-${block.text}`}>
-                            <Rect
-                              x={x}
-                              y={y}
-                              width={width}
-                              height={height}
-                              fill="white"
-                              opacity={0.9}
-                              rx={3}
-                            />
-                            <SvgText
-                              x={x + 3}
-                              y={y + height * 0.75}
-                              fontSize={fontSize}
-                              fill="#0F172A"
-                              fontWeight="bold"
-                            >
-                              {block.translated}
-                            </SvgText>
-                          </G>
-                        );
-                      })}
-                    </Svg>
-                  )}
+                    return (
+                      <Pressable
+                        key={overlayKey}
+                        disabled={block.isPending}
+                        onPress={() => handleOverlayPress(block, overlayKey)}
+                        style={[
+                          styles.overlayBlock,
+                          {
+                            left,
+                            top,
+                            width,
+                            minHeight: height,
+                            backgroundColor: block.isPending
+                              ? 'rgba(255,255,255,0.82)'
+                              : isSelected
+                                ? colors.primary + '33'
+                                : 'rgba(255,255,255,0.9)',
+                            borderWidth: isSelected ? 1 : 0,
+                            borderColor: isSelected ? colors.primary : 'transparent',
+                          },
+                        ]}
+                      >
+                        {block.isPending ? (
+                          <View style={styles.overlayLoading}>
+                            <ActivityIndicator size="small" color={colors.primary} />
+                          </View>
+                        ) : (
+                          <Text
+                            style={[
+                              styles.overlayText,
+                              {
+                                color: isSelected ? colors.primaryDark : '#0F172A',
+                                fontSize,
+                                lineHeight: Math.max(fontSize + 1, fontSize * 1.05),
+                              },
+                            ]}
+                            numberOfLines={Math.max(1, Math.floor(height / Math.max(fontSize, 10)))}
+                          >
+                            {block.translated}
+                          </Text>
+                        )}
+                      </Pressable>
+                    );
+                  })}
                 </View>
               </ReactNativeZoomableView>
             )}
@@ -379,6 +466,8 @@ export default function TranslatorScreen() {
   const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
   const [resultMode, setResultMode] = useState<ResultMode>('text');
   const [isPreviewTouchActive, setIsPreviewTouchActive] = useState(false);
+  const [imageTranslatedCount, setImageTranslatedCount] = useState(0);
+  const [imageTotalCount, setImageTotalCount] = useState(0);
 
   const {
     sourceLang, targetLang,
@@ -404,6 +493,8 @@ export default function TranslatorScreen() {
     setImageAspectRatio(null);
     setResultMode('text');
     setIsPreviewTouchActive(false);
+    setImageTranslatedCount(0);
+    setImageTotalCount(0);
   }, []);
 
   const handleTranslate = useCallback(async () => {
@@ -462,6 +553,8 @@ export default function TranslatorScreen() {
     setImageError('');
     setImagePreviewUri(uri);
     setImagePreviewBlocks([]);
+    setImageTranslatedCount(0);
+    setImageTotalCount(0);
     setResultMode('image');
     setTranslatedText('');
 
@@ -479,21 +572,51 @@ export default function TranslatorScreen() {
         setSourceText('');
         setTranslatedText('');
         setImagePreviewBlocks([]);
+        setImageTranslatedCount(0);
+        setImageTotalCount(0);
         setImagePhase('done');
         return;
       }
 
-      setImagePhase('translating');
-      const translations = await batchTranslateBlocks(rawBlocks, targetLang, translate);
-      const translatedBlocks = rawBlocks.map((block, index) => ({
-        ...block,
-        translated: translations[index] || block.text,
-      }));
       const combinedSource = rawBlocks.map((block) => block.text).join('\n');
-      const combinedTranslated = translatedBlocks.map((block) => block.translated).join('\n');
+      const pendingBlocks = rawBlocks.map((block) => ({
+        ...block,
+        translated: '',
+        isPending: true,
+      }));
+      const batches = splitBlocksForTranslation(rawBlocks);
 
-      setImagePreviewBlocks(translatedBlocks);
       setSourceText(combinedSource);
+      setImagePreviewBlocks(pendingBlocks);
+      setImageTotalCount(rawBlocks.length);
+      setImagePhase('translating');
+
+      let translatedCount = 0;
+      const translatedBlocks = [...pendingBlocks];
+
+      for (const batch of batches) {
+        const translations = await translateBlockBatch(batch.blocks, targetLang, translate);
+
+        for (let i = 0; i < batch.indexes.length; i += 1) {
+          const blockIndex = batch.indexes[i];
+          translatedBlocks[blockIndex] = {
+            ...translatedBlocks[blockIndex],
+            translated: translations[i],
+            isPending: false,
+          };
+          translatedCount += 1;
+        }
+
+        const partialTranslated = translatedBlocks
+          .map((block) => block.translated || '...')
+          .join('\n');
+
+        setImagePreviewBlocks([...translatedBlocks]);
+        setImageTranslatedCount(translatedCount);
+        setTranslatedText(partialTranslated);
+      }
+
+      const combinedTranslated = translatedBlocks.map((block) => block.translated).join('\n');
       setTranslatedText(combinedTranslated);
       addHistory({
         sourceText: combinedSource,
@@ -550,25 +673,72 @@ export default function TranslatorScreen() {
     await processImageTranslation(result.assets[0].uri);
   }, [processImageTranslation, t.mCameraPermissionDesc, t.mCameraPermissionTitle]);
 
+  const handlePickFile = useCallback(async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['text/*', 'application/json', 'text/csv', 'application/xml', 'text/xml'],
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+
+    if (!isReadableTextFile(asset)) {
+      Alert.alert(
+        t.mFileUnsupportedTitle ?? 'Unsupported file',
+        t.mFileUnsupportedDesc ?? 'Please choose a text-based file like TXT, MD, CSV, JSON, or XML.'
+      );
+      return;
+    }
+
+    try {
+      const content = await FileSystem.readAsStringAsync(asset.uri);
+      const normalized = content.replace(/\r\n/g, '\n').trim();
+
+      if (!normalized) {
+        Alert.alert(
+          t.mFileEmptyTitle ?? 'Empty file',
+          t.mFileEmptyDesc ?? 'This file has no readable text to translate.'
+        );
+        return;
+      }
+
+      clearImagePreview();
+      setIsSpeaking(false);
+      setSourceText(normalized);
+      setTranslatedText('');
+      inputRef.current?.focus();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not read this file.';
+      Alert.alert(
+        t.mFileReadErrorTitle ?? 'Could not open file',
+        message
+      );
+    }
+  }, [clearImagePreview, setSourceText, setTranslatedText, t.mFileEmptyDesc, t.mFileEmptyTitle, t.mFileReadErrorTitle, t.mFileUnsupportedDesc, t.mFileUnsupportedTitle]);
+
   const handleImageOptions = useCallback(() => {
     ActionSheetIOS.showActionSheetWithOptions(
       {
         options: [
           t.mPhotoLibrary ?? 'Photo',
           t.mTakePhoto ?? 'Camera',
+          t.mChooseFile ?? 'File',
           t.aCancel,
         ],
-        cancelButtonIndex: 2,
+        cancelButtonIndex: 3,
       },
       (buttonIndex) => {
         if (buttonIndex === 0) {
           void handlePickPhoto();
         } else if (buttonIndex === 1) {
           void handleTakePhoto();
+        } else if (buttonIndex === 2) {
+          void handlePickFile();
         }
       }
     );
-  }, [handlePickPhoto, handleTakePhoto, t.aCancel, t.mPhotoLibrary, t.mTakePhoto]);
+  }, [handlePickFile, handlePickPhoto, handleTakePhoto, t.aCancel, t.mChooseFile, t.mPhotoLibrary, t.mTakePhoto]);
 
   const handleSpeak = useCallback(() => {
     const lang = getLanguageByCode(targetLang);
@@ -626,7 +796,7 @@ export default function TranslatorScreen() {
           <View style={styles.navRow}>
             <View>
               <View style={styles.navTitleRow}>
-                <Text style={[styles.appTitle, { color: C.textPrimary }]}>AI Offline</Text>
+                <Text style={[styles.appTitle, { color: C.textPrimary }]}>Nomad</Text>
                 <Text style={[styles.appTitleAccent, { color: C.primary }]}>Translator</Text>
               </View>
               <Text style={[styles.appSubtitle, { color: C.textMuted }]}>{t.mSubtitle}</Text>
@@ -714,11 +884,11 @@ export default function TranslatorScreen() {
           {/* ── Result / Loading ──────────────────────────────────────────── */}
           {shouldShowResult && (
             <View>
-              {(isTranslating && translatedText === '') || isImageProcessing ? (
+              {(isTranslating && translatedText === '') || (imagePhase === 'ocr') ? (
                 <View style={[styles.loadingCard, { backgroundColor: C.surface, borderColor: C.border }, DS.shadow.level2(isDark)]}>
                   <ActivityIndicator size="large" color={C.primary} />
                   <Text style={[styles.loadingTitle, { color: C.textPrimary }]}>
-                    {isImageProcessing
+                    {imagePhase === 'ocr' || isImageProcessing
                       ? (imagePhase === 'ocr' ? (t.mReadingText ?? 'Reading text from image…') : t.mTranslating)
                       : t.mTranslating}
                   </Text>
@@ -743,6 +913,9 @@ export default function TranslatorScreen() {
                   imagePreviewBlocks={imagePreviewBlocks}
                   imageAspectRatio={imageAspectRatio}
                   resultMode={resultMode}
+                  imagePhase={imagePhase}
+                  imageTranslatedCount={imageTranslatedCount}
+                  imageTotalCount={imageTotalCount}
                   onPreviewTouchStart={() => setIsPreviewTouchActive(true)}
                   onPreviewTouchEnd={() => setIsPreviewTouchActive(false)}
                   onToggleResultMode={imagePreviewUri ? () => {
@@ -895,6 +1068,16 @@ const styles = StyleSheet.create({
     padding: DS.space.md,
     gap: DS.space.sm,
   },
+  imageProgressBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DS.space.sm,
+    paddingHorizontal: DS.space.sm + DS.space.xs,
+    paddingVertical: DS.space.sm,
+    borderRadius: DS.radius.md,
+    borderWidth: 1,
+  },
+  imageProgressText: { ...DS.type.footnote, fontWeight: '700' },
   imagePreviewFrame: {
     width: '100%',
     overflow: 'hidden',
@@ -903,6 +1086,28 @@ const styles = StyleSheet.create({
   },
   zoomablePreview: {
     flex: 1,
+  },
+  overlayBlock: {
+    position: 'absolute',
+    borderRadius: 4,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    paddingVertical: 2,
+    zIndex: 2,
+  },
+  overlayLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  overlayText: {
+    width: '100%',
+    color: '#0F172A',
+    fontWeight: '700',
+    textAlign: 'left',
+    includeFontPadding: false,
   },
   inlineNotice: {
     flexDirection: 'row',

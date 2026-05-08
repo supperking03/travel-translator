@@ -25,6 +25,7 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
   const isDark = useDSIsDark();
   const [visible, setVisible] = useState(false);
   const [search, setSearch] = useState('');
+  const isIOS = Platform.OS === 'ios';
 
   const selected = getLanguageByCode(selectedCode);
   const filtered = LANGUAGES.filter(
@@ -36,6 +37,11 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
 
   const handleSelect = (lang: Language) => {
     onSelect(lang.code);
+    setVisible(false);
+    setSearch('');
+  };
+
+  const closeModal = () => {
     setVisible(false);
     setSearch('');
   };
@@ -72,18 +78,26 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
       </TouchableOpacity>
 
       {/* ── Bottom-sheet modal ─────────────────────────────────────────── */}
-      <Modal visible={visible} animationType="slide" transparent statusBarTranslucent>
-        <View style={[styles.overlay, { backgroundColor: C.overlay }]}>
-          <View style={[styles.sheet, { backgroundColor: C.background }]}>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        transparent={!isIOS}
+        statusBarTranslucent={!isIOS}
+        presentationStyle={isIOS ? 'pageSheet' : undefined}
+        allowSwipeDismissal={isIOS}
+        onRequestClose={closeModal}
+      >
+        <View style={[isIOS ? styles.iosScreen : styles.overlay, { backgroundColor: isIOS ? C.background : C.overlay }]}>
+          <View style={[isIOS ? styles.iosSheet : styles.sheet, { backgroundColor: C.background }]}>
 
             {/* Handle */}
-            <View style={[styles.handle, { backgroundColor: C.borderStrong }]} />
+            {!isIOS && <View style={[styles.handle, { backgroundColor: C.borderStrong }]} />}
 
             {/* Header */}
             <View style={[styles.sheetHeader, { borderBottomColor: C.border }]}>
               <Text style={[styles.sheetTitle, { color: C.textPrimary }]}>Select Language</Text>
               <TouchableOpacity
-                onPress={() => { setVisible(false); setSearch(''); }}
+                onPress={closeModal}
                 style={[styles.closeBtn, { backgroundColor: C.surface }]}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
@@ -191,6 +205,11 @@ const styles = StyleSheet.create({
   pillNameSubtle:   { ...DS.type.footnote, fontWeight: '600' },
 
   // Modal
+  iosScreen: { flex: 1 },
+  iosSheet: {
+    flex: 1,
+    paddingBottom: Platform.OS === 'ios' ? 20 : DS.space.md,
+  },
   overlay: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     borderTopLeftRadius: DS.radius.xxl,
