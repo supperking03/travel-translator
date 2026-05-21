@@ -15,8 +15,11 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useStore } from '@/store/useStore';
 import { useLlama } from '@/hooks/useLlama';
+import { useWhisper } from '@/hooks/useWhisper';
 import { getModelFileSizeMB, deleteModel } from '@/utils/modelManager';
+import { getWhisperModelSizeMB, deleteWhisperModel } from '@/utils/whisperModelManager';
 import { MODEL_SIZE_MB } from '@/constants/model';
+import { WHISPER_MODEL_SIZE_MB } from '@/constants/whisperModel';
 import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem';
 import { useI18n } from '@/i18n/useI18n';
 
@@ -42,11 +45,13 @@ const UI_LANGUAGES = [
 // ─── Status card ──────────────────────────────────────────────────────────────
 function PackStatusCard({
   isReady, isDownloading, isLoading,
-  downloadProgress, isDark, colors, subtitle, children,
+  downloadProgress, isDark, colors, title, subtitle, sizeMB, children,
 }: {
   isReady: boolean; isDownloading: boolean; isLoading: boolean;
   downloadProgress: number; isDark: boolean; colors: DSColors;
+  title: string;
   subtitle?: string;
+  sizeMB: number;
   children?: React.ReactNode;
 }) {
   const t = useI18n();
@@ -74,7 +79,7 @@ function PackStatusCard({
           <Ionicons name={iconName} size={26} color={statusColor} />
         </View>
         <View style={styles.cardMeta}>
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{t.sPackTitle}</Text>
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{title}</Text>
           <Text style={[styles.cardSub, { color: colors.textMuted }]}>{subtitle ?? t.sPackSub}</Text>
         </View>
         <View style={[styles.statusPill, { backgroundColor: `${statusColor}18` }]}>
@@ -89,7 +94,7 @@ function PackStatusCard({
           <View style={styles.progressWrap}>
             <View style={styles.progressLabelRow}>
               <Text style={[styles.progressText, { color: colors.textMuted }]}>
-                {`${Math.round(downloadProgress * MODEL_SIZE_MB)} MB / ${MODEL_SIZE_MB} MB`}
+                {`${Math.round(downloadProgress * sizeMB)} MB / ${sizeMB} MB`}
               </Text>
               <Text style={[styles.progressPct, { color: colors.primary }]}>
                 {Math.round(downloadProgress * 100)}%
@@ -246,12 +251,15 @@ export default function SettingsScreen() {
 
   const {
     modelStatus, downloadProgress,
+    whisperModelStatus, whisperDownloadProgress,
     appLanguage, setAppLanguage,
     themePreference, setThemePreference,
   } = useStore();
   const { downloadAndLoad, cancelDownload, releaseModel } = useLlama();
+  const whisper = useWhisper();
 
   const [savedSizeMB, setSavedSizeMB] = useState<number | null>(null);
+  const [whisperSavedSizeMB, setWhisperSavedSizeMB] = useState<number | null>(null);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
 
   // Localize the navigation header title
@@ -262,6 +270,10 @@ export default function SettingsScreen() {
   useEffect(() => {
     getModelFileSizeMB().then(setSavedSizeMB);
   }, [modelStatus]);
+
+  useEffect(() => {
+    getWhisperModelSizeMB().then(setWhisperSavedSizeMB);
+  }, [whisperModelStatus]);
 
   const isDownloading = modelStatus === 'downloading';
   const isLoading     = modelStatus === 'loading';
@@ -275,6 +287,11 @@ export default function SettingsScreen() {
     shouldHighlightDownload && !isReady && !isDownloading && !isLoading
       ? (t.sDownloadPackBenefitTitle ?? 'Translate offline after one download')
       : t.sPackSub;
+
+  const whisperIsDownloading = whisperModelStatus === 'downloading';
+  const whisperIsLoading     = whisperModelStatus === 'loading';
+  const whisperIsReady       = whisperModelStatus === 'ready';
+  const whisperNotDownloaded = whisperModelStatus === 'not_downloaded' || whisperModelStatus === 'error';
 
   const handleDownload = () =>
     Alert.alert(
@@ -321,6 +338,49 @@ export default function SettingsScreen() {
       ]
     );
 
+  const handleWhisperDownload = () =>
+    Alert.alert(
+      'Download Voice Model',
+      `~${WHISPER_MODEL_SIZE_MB} MB. Required for cabin translation (offline speech recognition).`,
+      [
+        { text: t.aCancel, style: 'cancel' },
+        { text: t.aDownload, onPress: whisper.downloadAndLoad },
+      ]
+    );
+
+  const handleWhisperRedownload = () =>
+    Alert.alert(
+      'Re-download Voice Model',
+      `~${WHISPER_MODEL_SIZE_MB} MB`,
+      [
+        { text: t.aCancel, style: 'cancel' },
+        {
+          text: t.aDownload,
+          onPress: async () => {
+            await deleteWhisperModel();
+            whisper.downloadAndLoad();
+          },
+        },
+      ]
+    );
+
+  const handleWhisperDelete = () =>
+    Alert.alert(
+      'Delete Voice Model',
+      'This will disable cabin translation until you re-download.',
+      [
+        { text: t.aCancel, style: 'cancel' },
+        {
+          text: t.aDelete,
+          style: 'destructive',
+          onPress: async () => {
+            await deleteWhisperModel();
+            setWhisperSavedSizeMB(null);
+          },
+        },
+      ]
+    );
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: C.background }]} edges={['bottom']}>
       <ScrollView
@@ -336,7 +396,9 @@ export default function SettingsScreen() {
           downloadProgress={downloadProgress}
           isDark={isDark}
           colors={C}
+          title={t.sPackTitle}
           subtitle={packSubtitle}
+          sizeMB={MODEL_SIZE_MB}
         >
           {shouldHighlightDownload && !isReady && !isDownloading && !isLoading && (
             <View style={styles.primaryBlock}>
@@ -402,6 +464,66 @@ export default function SettingsScreen() {
                 description={t.sDeletePackDesc}
                 variant="danger"
                 onPress={handleDelete}
+                isDark={isDark}
+                colors={C}
+              />
+            )}
+          </View>
+        </PackStatusCard>
+
+        {/* ── Voice Recognition (Whisper) ──────────────────────────────── */}
+        <PackStatusCard
+          isReady={whisperIsReady}
+          isDownloading={whisperIsDownloading}
+          isLoading={whisperIsLoading}
+          downloadProgress={whisperDownloadProgress}
+          isDark={isDark}
+          colors={C}
+          title="Voice Recognition"
+          subtitle="Offline speech-to-text for cabin translation (~142 MB)"
+          sizeMB={WHISPER_MODEL_SIZE_MB}
+        >
+          {whisperNotDownloaded && !whisperIsDownloading && !whisperIsLoading && (
+            <View style={styles.primaryBlock}>
+              <PrimaryPackAction
+                label="Download Voice Model"
+                onPress={handleWhisperDownload}
+                colors={C}
+                isDark={isDark}
+              />
+            </View>
+          )}
+
+          <View style={styles.rowGroup}>
+            {whisperIsDownloading && (
+              <ActionRow
+                icon="close-circle-outline"
+                label={t.sCancelDownload}
+                variant="danger"
+                onPress={whisper.cancelDownload}
+                isDark={isDark}
+                colors={C}
+              />
+            )}
+
+            {(whisperIsReady || whisperSavedSizeMB !== null) && !whisperIsDownloading && !whisperIsLoading && (
+              <ActionRow
+                icon="arrow-down-circle-outline"
+                label={t.sRedownload}
+                description={t.sRedownloadDesc}
+                onPress={handleWhisperRedownload}
+                isDark={isDark}
+                colors={C}
+              />
+            )}
+
+            {(whisperIsReady || whisperSavedSizeMB !== null) && !whisperIsDownloading && !whisperIsLoading && (
+              <ActionRow
+                icon="trash-outline"
+                label={t.sDeletePack}
+                description="Disables cabin translation"
+                variant="danger"
+                onPress={handleWhisperDelete}
                 isDark={isDark}
                 colors={C}
               />

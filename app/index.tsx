@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActionSheetIOS,
   View,
@@ -29,6 +29,7 @@ import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-vi
 
 import { useStore } from '@/store/useStore';
 import { useLlama } from '@/hooks/useLlama';
+import { useWhisper } from '@/hooks/useWhisper';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem';
 import { getLanguageByCode } from '@/constants/languages';
@@ -484,6 +485,47 @@ export default function TranslatorScreen() {
   const swapAnim  = useRef(new Animated.Value(0)).current;
 
   const { translate, isReady } = useLlama();
+  const whisper = useWhisper();
+
+  const [isCabinMode, setIsCabinMode] = useState(false);
+  const cabinPulseAnim   = useRef(new Animated.Value(1)).current;
+  const cabinTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isCabinXlating   = useRef(false);
+  const isCabinModeRef   = useRef(false);
+
+  useEffect(() => { isCabinModeRef.current = isCabinMode; }, [isCabinMode]);
+
+  // Pulse glow animation while listening
+  useEffect(() => {
+    if (!isCabinMode) { cabinPulseAnim.setValue(1); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(cabinPulseAnim, { toValue: 1.22, duration: 750, useNativeDriver: true }),
+        Animated.timing(cabinPulseAnim, { toValue: 1.00, duration: 750, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isCabinMode, cabinPulseAnim]);
+
+  const scheduleCabinTranslate = useCallback((text: string) => {
+    if (cabinTimerRef.current) clearTimeout(cabinTimerRef.current);
+    cabinTimerRef.current = setTimeout(async () => {
+      if (!text.trim() || isCabinXlating.current) return;
+      isCabinXlating.current = true;
+      try {
+        const result = await translate(text, sourceLang, targetLang);
+        setTranslatedText(result);
+      } catch { /* silent — cabin mode is best-effort */ }
+      isCabinXlating.current = false;
+    }, 1300);
+  }, [translate, sourceLang, targetLang, setTranslatedText]);
+
+  const stopCabinMode = useCallback(async () => {
+    setIsCabinMode(false);
+    if (cabinTimerRef.current) clearTimeout(cabinTimerRef.current);
+    await whisper.stopListening();
+  }, [whisper]);
 
   const clearImagePreview = useCallback(() => {
     setImagePhase('idle');
@@ -496,6 +538,48 @@ export default function TranslatorScreen() {
     setImageTranslatedCount(0);
     setImageTotalCount(0);
   }, []);
+
+  const handleCabinToggle = useCallback(async () => {
+    if (isCabinMode) { await stopCabinMode(); return; }
+
+    if (!whisper.isReady) {
+      Alert.alert(
+        'Voice model not ready',
+        'Please download the voice recognition model in Settings to use cabin translation.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Download', onPress: () => router.push('/settings') },
+        ]
+      );
+      return;
+    }
+
+    Keyboard.dismiss();
+    clearImagePreview();
+    setIsCabinMode(true);
+
+    const langCode = sourceLang === 'auto' ? undefined : sourceLang;
+
+    try {
+      await whisper.startListening(
+        langCode,
+        (partial) => {
+          setSourceText(partial);
+          if (partial.trim()) scheduleCabinTranslate(partial);
+        },
+        (final) => {
+          if (final.trim()) {
+            setSourceText(final);
+            scheduleCabinTranslate(final);
+          }
+          setIsCabinMode(false);
+        },
+      );
+    } catch (err) {
+      setIsCabinMode(false);
+      Alert.alert('Voice Error', err instanceof Error ? err.message : 'Failed to start voice input.');
+    }
+  }, [isCabinMode, whisper, sourceLang, clearImagePreview, setSourceText, scheduleCabinTranslate, stopCabinMode]);
 
   const handleTranslate = useCallback(async () => {
     if (!sourceText.trim()) return;
@@ -527,19 +611,27 @@ export default function TranslatorScreen() {
   }, [translatedText, t.mCopied]);
 
   const handleClear = useCallback(() => {
+    if (isCabinModeRef.current) {
+      setIsCabinMode(false);
+      if (cabinTimerRef.current) clearTimeout(cabinTimerRef.current);
+      void whisper.stopListening();
+    }
     clearImagePreview();
     setSourceText('');
     setTranslatedText('');
     setIsSpeaking(false);
     inputRef.current?.focus();
-  }, [clearImagePreview, setSourceText, setTranslatedText]);
+  }, [clearImagePreview, setSourceText, setTranslatedText, whisper]);
 
   const handleSourceTextChange = useCallback((text: string) => {
-    if (imagePreviewUri) {
-      clearImagePreview();
+    if (isCabinModeRef.current) {
+      setIsCabinMode(false);
+      if (cabinTimerRef.current) clearTimeout(cabinTimerRef.current);
+      void whisper.stopListening();
     }
+    if (imagePreviewUri) clearImagePreview();
     setSourceText(text);
-  }, [clearImagePreview, imagePreviewUri, setSourceText]);
+  }, [clearImagePreview, imagePreviewUri, setSourceText, whisper]);
 
   const processImageTranslation = useCallback(async (uri: string) => {
     if (!isReady) {
@@ -828,6 +920,11 @@ export default function TranslatorScreen() {
                 <Text style={[styles.charCount, { color: C.warning, fontWeight: '600' }]}>
                   {sourceText.length}/10000
                 </Text>
+              ) : isCabinMode ? (
+                <View style={styles.listeningBadge}>
+                  <View style={[styles.listeningDot, { backgroundColor: C.danger }]} />
+                  <Text style={[styles.listeningText, { color: C.danger }]}>Listening…</Text>
+                </View>
               ) : (
                 <View />
               )}
@@ -838,6 +935,27 @@ export default function TranslatorScreen() {
                 >
                   <Ionicons name="image-outline" size={20} color={C.primary} />
                 </TouchableOpacity>
+
+                {/* Cabin translation mic */}
+                <TouchableOpacity
+                  onPress={() => void handleCabinToggle()}
+                  hitSlop={{ top: DS.space.sm, bottom: DS.space.sm, left: DS.space.sm, right: DS.space.sm }}
+                >
+                  <Animated.View style={[
+                    styles.cabinMicBtn,
+                    isCabinMode
+                      ? { backgroundColor: C.primary, ...DS.shadow.level2(isDark) }
+                      : { backgroundColor: 'transparent' },
+                    { transform: [{ scale: cabinPulseAnim }] },
+                  ]}>
+                    <Ionicons
+                      name={isCabinMode ? 'mic' : 'mic-outline'}
+                      size={20}
+                      color={isCabinMode ? C.background : C.primary}
+                    />
+                  </Animated.View>
+                </TouchableOpacity>
+
                 {sourceText.length > 0 && (
                   <TouchableOpacity onPress={handleClear} hitSlop={{ top: DS.space.sm, bottom: DS.space.sm, left: DS.space.sm, right: DS.space.sm }}>
                     <Ionicons name="close-circle" size={22} color={C.textMuted} />
@@ -994,6 +1112,28 @@ const styles = StyleSheet.create({
   },
   charCount:    { ...DS.type.caption1 },
   inputActions: { flexDirection: 'row', alignItems: 'center', gap: DS.space.sm + DS.space.xs },
+
+  cabinMicBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: DS.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listeningBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DS.space.xs,
+  },
+  listeningDot: {
+    width: 6,
+    height: 6,
+    borderRadius: DS.radius.full,
+  },
+  listeningText: {
+    ...DS.type.caption1,
+    fontWeight: '600' as const,
+  },
 
   // Translate button
   translateBtn: {

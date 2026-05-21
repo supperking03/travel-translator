@@ -83,14 +83,14 @@ export function useWhisper() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startListening = useCallback(async (
-    language: string,
+    language: string | undefined,
     onPartial: (text: string) => void,
     onDone: (text: string) => void,
   ) => {
     if (!_whisperContext) throw new Error('Whisper not loaded');
 
     const { stop, subscribe } = await _whisperContext.transcribeRealtime({
-      language,
+      ...(language ? { language } : {}),
       maxLen: 1,
       tokenTimestamps: false,
       realtimeAudioSec: 30,

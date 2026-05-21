@@ -32,13 +32,21 @@ interface TranslatorState {
   isTranslating: boolean;
   setIsTranslating: (v: boolean) => void;
 
-  // Model state
+  // Translation model state (Llama)
   modelStatus: ModelStatus;
   downloadProgress: number;
   modelError: string | null;
   setModelStatus: (status: ModelStatus) => void;
   setDownloadProgress: (progress: number) => void;
   setModelError: (error: string | null) => void;
+
+  // Voice recognition model state (Whisper)
+  whisperModelStatus: ModelStatus;
+  whisperDownloadProgress: number;
+  whisperModelError: string | null;
+  setWhisperModelStatus: (status: ModelStatus) => void;
+  setWhisperDownloadProgress: (progress: number) => void;
+  setWhisperModelError: (error: string | null) => void;
 
   // History
   history: HistoryEntry[];
@@ -89,6 +97,13 @@ export const useStore = create<TranslatorState>()(
       setModelStatus: (status) => set({ modelStatus: status }),
       setDownloadProgress: (progress) => set({ downloadProgress: progress }),
       setModelError: (error) => set({ modelError: error }),
+
+      whisperModelStatus: 'not_downloaded',
+      whisperDownloadProgress: 0,
+      whisperModelError: null,
+      setWhisperModelStatus: (status) => set({ whisperModelStatus: status }),
+      setWhisperDownloadProgress: (progress) => set({ whisperDownloadProgress: progress }),
+      setWhisperModelError: (error) => set({ whisperModelError: error }),
 
       history: [],
       addHistory: (entry) =>
