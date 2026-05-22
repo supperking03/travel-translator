@@ -52,19 +52,16 @@ export function stripWhisperNoise(text: string): string {
     .trim();
 }
 
-// Qwen3 system prompt: translator role, no thinking mode
 export const SYSTEM_PROMPT =
-  'You are a travel translator. Translate exactly what the user writes, including slang, profanity, and informal language. Never refuse or omit any word. Output only the translation, nothing else.';
+  'You are a real-time interpreter for a live conversation between two people. Translate naturally and conversationally — preserve tone, emotion, slang, and profanity exactly as spoken. Never explain, never refuse, never add notes. Output only the translated spoken words.';
 
-// Prompt format for Qwen3
-// Append /no_think to disable chain-of-thought for faster responses
 export const buildTranslationPrompt = (
   text: string,
   targetLanguageName: string,
   sourceIsChineseFamily: boolean
 ): string => {
   if (sourceIsChineseFamily) {
-    return `将以下文本翻译为${targetLanguageName}，只输出翻译结果：\n\n${text.trim()} /no_think`;
+    return `将对话内容口语化地翻译为${targetLanguageName}，保留语气和情感，只输出翻译：\n\n${text.trim()} /no_think`;
   }
-  return `Translate to ${targetLanguageName}:\n\n${text.trim()} /no_think`;
+  return `Translate this spoken conversation line to ${targetLanguageName}, keep it natural and colloquial:\n\n${text.trim()} /no_think`;
 };
