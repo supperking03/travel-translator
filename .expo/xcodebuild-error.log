@@ -1,0 +1,7 @@
+** BUILD FAILED **
+
+
+The following build commands failed:
+	ScanDependencies /Users/kelvin/Library/Developer/Xcode/DerivedData/TravelTranslator-bjdenvczyfxaxbfkbneqnnqtkntx/Build/Intermediates.noindex/Pods.build/Debug-iphoneos/RNAudioPcmStream.build/Objects-normal/arm64/RNLiveAudioStream.o /Users/kelvin/Downloads/travel-translator/node_modules/@fugood/react-native-audio-pcm-stream/ios/RNLiveAudioStream.m normal arm64 objective-c com.apple.compilers.llvm.clang.1_0.compiler (in target 'RNAudioPcmStream' from project 'Pods')
+	Building workspace TravelTranslator with scheme TravelTranslator and configuration Debug
+(2 failures)

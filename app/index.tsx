@@ -35,6 +35,7 @@ import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem
 import { getLanguageByCode } from '@/constants/languages';
 import { useI18n } from '@/i18n/useI18n';
 import { recognizeTextBlocksFromImage, TextBlock } from '@/utils/imageTextRecognition';
+import { cleanModelOutput, stripWhisperNoise } from '@/constants/model';
 
 type TranslatedBlock = TextBlock & { translated: string; isPending: boolean };
 type ImageTranslatePhase = 'idle' | 'ocr' | 'translating' | 'done' | 'error';
@@ -452,6 +453,88 @@ function TranslationResultCard({
   );
 }
 
+// ─── Thinking dots ────────────────────────────────────────────────────────────
+function ThinkingDots({ color }: { color: string }) {
+  const opacity = useRef(new Animated.Value(0.35)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.35, duration: 500, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [opacity]);
+  return (
+    <Animated.Text style={{ color, opacity, fontSize: 22, letterSpacing: 5, marginTop: 6 }}>
+      . . .
+    </Animated.Text>
+  );
+}
+
+// ─── Cabin result panel ───────────────────────────────────────────────────────
+const CabinResultPanel = React.memo(function CabinResultPanel({
+  text, isCabinMode, isThinking, targetLangCode, colors, isDark,
+}: {
+  text: string;
+  isCabinMode: boolean;
+  isThinking: boolean;
+  targetLangCode: string;
+  colors: DSColors;
+  isDark: boolean;
+}) {
+  const innerScrollRef = useRef<ScrollView>(null);
+  const lang = getLanguageByCode(targetLangCode);
+
+  useEffect(() => {
+    innerScrollRef.current?.scrollToEnd({ animated: true });
+  }, [text, isThinking]);
+
+  return (
+    <View style={[
+      styles.cabinPanel,
+      { backgroundColor: colors.surface, borderColor: colors.primary + '35' },
+      DS.shadow.level2(isDark),
+    ]}>
+      <View style={[styles.cabinPanelAccent, { backgroundColor: colors.primary }]} />
+      <View style={[styles.cabinPanelHeader, { borderBottomColor: colors.border }]}>
+        <Text style={styles.cabinPanelFlag}>{lang?.flag ?? '🌐'}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.cabinPanelLabel, { color: colors.textMuted }]}>LIVE TRANSLATION</Text>
+          <Text style={[styles.cabinPanelLang, { color: colors.primary }]}>{lang?.name ?? 'Unknown'}</Text>
+        </View>
+        {isCabinMode && (
+          <View style={styles.cabinLiveBadge}>
+            <View style={[styles.cabinLiveDot, { backgroundColor: colors.primary }]} />
+            <Text style={[styles.cabinLiveText, { color: colors.primary }]}>Listening</Text>
+          </View>
+        )}
+      </View>
+      <ScrollView
+        ref={innerScrollRef}
+        style={styles.cabinPanelScroll}
+        contentContainerStyle={styles.cabinPanelScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {text.split('\n').filter(Boolean).map((line, idx, arr) => {
+          const distFromEnd = arr.length - 1 - idx;
+          const opacity = distFromEnd === 0 ? 1 : distFromEnd === 1 ? 0.45 : 0.22;
+          return (
+            <Text
+              key={idx}
+              style={[styles.cabinPanelText, { color: colors.textPrimary, opacity, marginBottom: 6 }]}
+            >
+              {line}
+            </Text>
+          );
+        })}
+        {isThinking && <ThinkingDots color={colors.textMuted} />}
+      </ScrollView>
+    </View>
+  );
+});
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function TranslatorScreen() {
   const C       = useDSColors();
@@ -481,18 +564,34 @@ export default function TranslatorScreen() {
     onboardingComplete,
   } = useStore();
 
+  const [cabinDisplayText, setCabinDisplayText] = useState('');
+  const [cabinIsThinking, setCabinIsThinking] = useState(false);
+  const outerScrollRef = useRef<ScrollView>(null);
+  const cabinLangCodeRef = useRef<string | undefined>(undefined);
+  const startCabinSessionRef = useRef<(() => Promise<void>) | null>(null);
+
   const swapAngle = useRef(0);
   const swapAnim  = useRef(new Animated.Value(0)).current;
 
-  const { translate, isReady } = useLlama();
+  const { translate, translateStreaming, isReady } = useLlama();
   const whisper = useWhisper();
 
   const [isCabinMode, setIsCabinMode] = useState(false);
-  const cabinPulseAnim   = useRef(new Animated.Value(1)).current;
-  const cabinTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isCabinXlating   = useRef(false);
-  const isCabinModeRef   = useRef(false);
+  const cabinPulseAnim  = useRef(new Animated.Value(1)).current;
+  const isCabinModeRef  = useRef(false);
 
+  // Sentence-queue streaming state
+  const cabinAccumRef      = useRef<string[]>([]);   // finalized translated sentences
+  const cabinQueueRef      = useRef<string[]>([]);   // sentences waiting translation
+  const cabinLastPosRef    = useRef(0);              // chars of source already queued
+  const cabinStreamRef     = useRef<string[]>([]);   // tokens of sentence being streamed
+  const cabinProcessingRef = useRef(false);          // queue loop running?
+
+  // Keep refs in sync so callbacks don't go stale
+  const sourceLangRef = useRef(sourceLang);
+  const targetLangRef = useRef(targetLang);
+  useEffect(() => { sourceLangRef.current = sourceLang; }, [sourceLang]);
+  useEffect(() => { targetLangRef.current = targetLang; }, [targetLang]);
   useEffect(() => { isCabinModeRef.current = isCabinMode; }, [isCabinMode]);
 
   // Pulse glow animation while listening
@@ -508,22 +607,67 @@ export default function TranslatorScreen() {
     return () => loop.stop();
   }, [isCabinMode, cabinPulseAnim]);
 
-  const scheduleCabinTranslate = useCallback((text: string) => {
-    if (cabinTimerRef.current) clearTimeout(cabinTimerRef.current);
-    cabinTimerRef.current = setTimeout(async () => {
-      if (!text.trim() || isCabinXlating.current) return;
-      isCabinXlating.current = true;
+  // Process queued sentences one at a time, streaming each translation token-by-token
+  const runCabinQueue = useCallback(async () => {
+    if (cabinProcessingRef.current) return;
+    cabinProcessingRef.current = true;
+
+    while (cabinQueueRef.current.length > 0) {
+      const sentence = cabinQueueRef.current.shift()!;
+      cabinStreamRef.current = [];
+
       try {
-        const result = await translate(text, sourceLang, targetLang);
-        setTranslatedText(result);
-      } catch { /* silent — cabin mode is best-effort */ }
-      isCabinXlating.current = false;
-    }, 1300);
-  }, [translate, sourceLang, targetLang, setTranslatedText]);
+        await translateStreaming(
+          sentence,
+          sourceLangRef.current,
+          targetLangRef.current,
+          (token) => {
+            cabinStreamRef.current.push(token);
+            const raw = cabinStreamRef.current.join('');
+            const hasOpenThink = raw.includes('<think>') && !raw.includes('</think>');
+            setCabinIsThinking(hasOpenThink);
+            const visible = cleanModelOutput(raw);
+            if (visible) {
+              setCabinDisplayText([...cabinAccumRef.current, visible].filter(Boolean).join('\n'));
+            }
+          },
+        );
+        setCabinIsThinking(false);
+        const final = cleanModelOutput(cabinStreamRef.current.join(''));
+        if (final) {
+          cabinAccumRef.current.push(final);
+          // Keep last 20 sentences for performance
+          if (cabinAccumRef.current.length > 20) {
+            cabinAccumRef.current = cabinAccumRef.current.slice(-20);
+          }
+        }
+        setCabinDisplayText(cabinAccumRef.current.join('\n'));
+        setTimeout(() => outerScrollRef.current?.scrollToEnd({ animated: true }), 80);
+      } catch { /* silent — cabin is best-effort */ }
+    }
+
+    cabinProcessingRef.current = false;
+  }, [translateStreaming]);
+
+  // Extract and queue any newly-complete sentences from Whisper partial text
+  const enqueueCabinSentences = useCallback((text: string) => {
+    const portion = text.slice(cabinLastPosRef.current);
+    const regex = /[^.!?。！？\n]+[.!?。！？\n]+/g;
+    let match: RegExpExecArray | null;
+    let lastEnd = 0;
+
+    while ((match = regex.exec(portion)) !== null) {
+      const s = match[0].trim();
+      if (s.length > 1) cabinQueueRef.current.push(s);
+      lastEnd = match.index + match[0].length;
+    }
+
+    cabinLastPosRef.current += lastEnd;
+    void runCabinQueue();
+  }, [runCabinQueue]);
 
   const stopCabinMode = useCallback(async () => {
     setIsCabinMode(false);
-    if (cabinTimerRef.current) clearTimeout(cabinTimerRef.current);
     await whisper.stopListening();
   }, [whisper]);
 
@@ -538,6 +682,45 @@ export default function TranslatorScreen() {
     setImageTranslatedCount(0);
     setImageTotalCount(0);
   }, []);
+
+  // One whisper session (up to 5 min). Restarts automatically while cabin mode is still on.
+  const startCabinSession = useCallback(async () => {
+    try {
+      await whisper.startListening(
+        cabinLangCodeRef.current,
+        (partial) => {
+          const clean = stripWhisperNoise(partial);
+          const display = clean.length > 1200 ? '…' + clean.slice(-1000) : clean;
+          setSourceText(display);
+          enqueueCabinSentences(clean);
+        },
+        (final) => {
+          const clean = stripWhisperNoise(final);
+          if (clean.trim()) {
+            const remaining = clean.slice(cabinLastPosRef.current).trim();
+            if (remaining.length > 1) {
+              cabinQueueRef.current.push(remaining);
+              void runCabinQueue();
+            }
+          }
+          // Reset per-session state for restart
+          cabinLastPosRef.current = 0;
+          setSourceText('');
+          // Auto-restart if user hasn't stopped cabin mode
+          if (isCabinModeRef.current) {
+            void startCabinSessionRef.current?.();
+          } else {
+            setIsCabinMode(false);
+          }
+        },
+      );
+    } catch (err) {
+      setIsCabinMode(false);
+      Alert.alert('Voice Error', err instanceof Error ? err.message : 'Failed to start voice input.');
+    }
+  }, [whisper, setSourceText, enqueueCabinSentences, runCabinQueue]);
+
+  useEffect(() => { startCabinSessionRef.current = startCabinSession; }, [startCabinSession]);
 
   const handleCabinToggle = useCallback(async () => {
     if (isCabinMode) { await stopCabinMode(); return; }
@@ -556,30 +739,20 @@ export default function TranslatorScreen() {
 
     Keyboard.dismiss();
     clearImagePreview();
+
+    // Reset cabin state
+    cabinAccumRef.current = [];
+    cabinQueueRef.current = [];
+    cabinLastPosRef.current = 0;
+    cabinStreamRef.current = [];
+    cabinProcessingRef.current = false;
+    setCabinDisplayText('');
+    setCabinIsThinking(false);
     setIsCabinMode(true);
 
-    const langCode = sourceLang === 'auto' ? undefined : sourceLang;
-
-    try {
-      await whisper.startListening(
-        langCode,
-        (partial) => {
-          setSourceText(partial);
-          if (partial.trim()) scheduleCabinTranslate(partial);
-        },
-        (final) => {
-          if (final.trim()) {
-            setSourceText(final);
-            scheduleCabinTranslate(final);
-          }
-          setIsCabinMode(false);
-        },
-      );
-    } catch (err) {
-      setIsCabinMode(false);
-      Alert.alert('Voice Error', err instanceof Error ? err.message : 'Failed to start voice input.');
-    }
-  }, [isCabinMode, whisper, sourceLang, clearImagePreview, setSourceText, scheduleCabinTranslate, stopCabinMode]);
+    cabinLangCodeRef.current = sourceLang === 'auto' ? undefined : sourceLang;
+    await startCabinSession();
+  }, [isCabinMode, whisper, sourceLang, clearImagePreview, stopCabinMode, startCabinSession]);
 
   const handleTranslate = useCallback(async () => {
     if (!sourceText.trim()) return;
@@ -613,7 +786,7 @@ export default function TranslatorScreen() {
   const handleClear = useCallback(() => {
     if (isCabinModeRef.current) {
       setIsCabinMode(false);
-      if (cabinTimerRef.current) clearTimeout(cabinTimerRef.current);
+      cabinQueueRef.current = [];
       void whisper.stopListening();
     }
     clearImagePreview();
@@ -626,7 +799,7 @@ export default function TranslatorScreen() {
   const handleSourceTextChange = useCallback((text: string) => {
     if (isCabinModeRef.current) {
       setIsCabinMode(false);
-      if (cabinTimerRef.current) clearTimeout(cabinTimerRef.current);
+      cabinQueueRef.current = [];
       void whisper.stopListening();
     }
     if (imagePreviewUri) clearImagePreview();
@@ -877,6 +1050,7 @@ export default function TranslatorScreen() {
         keyboardVerticalOffset={0}
       >
         <ScrollView
+          ref={outerScrollRef}
           style={styles.flex}
           contentContainerStyle={styles.scroll}
           scrollEnabled={!shouldLockPageScroll}
@@ -922,8 +1096,8 @@ export default function TranslatorScreen() {
                 </Text>
               ) : isCabinMode ? (
                 <View style={styles.listeningBadge}>
-                  <View style={[styles.listeningDot, { backgroundColor: C.danger }]} />
-                  <Text style={[styles.listeningText, { color: C.danger }]}>Listening…</Text>
+                  <View style={[styles.listeningDot, { backgroundColor: C.primary }]} />
+                  <Text style={[styles.listeningText, { color: C.primary }]}>Listening…</Text>
                 </View>
               ) : (
                 <View />
@@ -993,14 +1167,26 @@ export default function TranslatorScreen() {
           {/* ── Translate button ──────────────────────────────────────────── */}
           <TranslateButton
             onPress={handleTranslate}
-            disabled={!sourceText.trim() || isTranslating}
+            disabled={!sourceText.trim() || isTranslating || isCabinMode}
             isTranslating={isTranslating}
             colors={C}
             isDark={isDark}
           />
 
+          {/* ── Cabin result panel ───────────────────────────────────────── */}
+          {(isCabinMode || cabinDisplayText !== '') && (
+            <CabinResultPanel
+              text={cabinDisplayText}
+              isCabinMode={isCabinMode}
+              isThinking={cabinIsThinking}
+              targetLangCode={targetLang}
+              colors={C}
+              isDark={isDark}
+            />
+          )}
+
           {/* ── Result / Loading ──────────────────────────────────────────── */}
-          {shouldShowResult && (
+          {!isCabinMode && shouldShowResult && (
             <View>
               {(isTranslating && translatedText === '') || (imagePhase === 'ocr') ? (
                 <View style={[styles.loadingCard, { backgroundColor: C.surface, borderColor: C.border }, DS.shadow.level2(isDark)]}>
@@ -1277,4 +1463,44 @@ const styles = StyleSheet.create({
   actionChipText: { ...DS.type.footnote, fontWeight: '600' },
 
   bottomSpacer: { height: DS.space.xl },
+
+  // Cabin result panel
+  cabinPanel: {
+    borderRadius: DS.radius.xl,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  cabinPanelAccent: { height: 3 },
+  cabinPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DS.space.sm + DS.space.xs,
+    paddingHorizontal: DS.space.md,
+    paddingVertical: DS.space.sm + DS.space.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  cabinPanelFlag: { fontSize: DS.icon.lg },
+  cabinPanelLabel: { ...DS.type.label },
+  cabinPanelLang: { ...DS.type.subhead, fontWeight: '700' as const, marginTop: 1 },
+  cabinLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: DS.space.xs,
+  },
+  cabinLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: DS.radius.full,
+  },
+  cabinLiveText: { ...DS.type.caption1, fontWeight: '600' as const },
+  cabinPanelScroll: { maxHeight: 220 },
+  cabinPanelScrollContent: {
+    padding: DS.space.md,
+    paddingTop: DS.space.sm + DS.space.xs,
+  },
+  cabinPanelText: {
+    ...DS.type.title3,
+    fontWeight: '500' as const,
+    lineHeight: 26,
+  },
 });

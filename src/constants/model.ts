@@ -14,23 +14,47 @@ export const getModelPath = () => `${LegacyFS.documentDirectory}models/${MODEL_F
 
 export const LLAMA_CONTEXT_PARAMS = {
   use_mlock: true,
-  n_ctx: 2048,
-  n_threads: 4,
-  n_batch: 64,
+  n_gpu_layers: 99,   // offload all layers to Metal GPU — less CPU heat, faster
+  n_ctx: 1024,        // translation needs ~200 tokens; 1024 is plenty
+  n_threads: 2,       // fewer CPU threads needed when GPU does the heavy lifting
+  n_batch: 512,       // larger batch = better GPU throughput
 };
 
-// Qwen3 thinking mode disabled (/no_think) for fast translation output
 export const TRANSLATION_COMPLETION_PARAMS = {
-  n_predict: 512,
+  n_predict: 256,     // /no_think translations are 30-100 tokens; 256 is safe ceiling
   temperature: 0.7,
   top_p: 0.8,
   top_k: 20,
   repeat_penalty: 1.05,
 };
 
+// Strip model meta-tags, prompt leakage, and formatting artifacts from output
+export function cleanModelOutput(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')   // complete think blocks
+    .replace(/<think>[\s\S]*/gi, '')              // unclosed think block at end
+    .replace(/<\/?(?:think|nothink)>/gi, '')      // orphaned think/nothink tags
+    .replace(/\/no_think/gi, '')                  // echoed prompt token
+    .replace(/\[[^\]]{1,80}\]/g, '')              // [system annotations] up to 80 chars
+    .replace(/^>+\s*/gm, '')                      // >> quote prefixes
+    .replace(/^[-*•]\s+/gm, '')                   // - bullet prefixes
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+// Strip Whisper non-speech annotations before sending to translation
+export function stripWhisperNoise(text: string): string {
+  return text
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/\([^)]{1,40}\)/g, '')
+    .replace(/♪[^♪]*♪?/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Qwen3 system prompt: translator role, no thinking mode
 export const SYSTEM_PROMPT =
-  'You are a professional travel translator. Translate exactly what the user writes. Output only the translation, no explanations.';
+  'You are a travel translator. Translate exactly what the user writes, including slang, profanity, and informal language. Never refuse or omit any word. Output only the translation, nothing else.';
 
 // Prompt format for Qwen3
 // Append /no_think to disable chain-of-thought for faster responses

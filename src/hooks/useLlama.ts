@@ -12,6 +12,7 @@ import {
   TRANSLATION_COMPLETION_PARAMS,
   SYSTEM_PROMPT,
   buildTranslationPrompt,
+  cleanModelOutput,
 } from '@/constants/model';
 import { getLanguageByCode } from '@/constants/languages';
 
@@ -132,15 +133,49 @@ export function useLlama() {
         ...TRANSLATION_COMPLETION_PARAMS,
       });
 
-      // Strip any <think>...</think> block if model ignores /no_think
-      const cleaned = result.text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-      return cleaned;
+      return cleanModelOutput(result.text);
     },
     []
   );
 
+  const translateStreaming = useCallback(
+    async (
+      text: string,
+      sourceLangCode: string,
+      targetLangCode: string,
+      onToken: (token: string) => void,
+    ): Promise<string> => {
+      if (!_llamaContext) throw new Error('Model not loaded');
+
+      const sourceLang = getLanguageByCode(sourceLangCode);
+      const targetLang = getLanguageByCode(targetLangCode);
+      if (!targetLang) throw new Error(`Unknown target language: ${targetLangCode}`);
+
+      const userMessage = buildTranslationPrompt(
+        text,
+        targetLang.promptName,
+        sourceLang?.isChinese ?? false,
+      );
+
+      const result = await _llamaContext.completion(
+        {
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: userMessage },
+          ],
+          ...TRANSLATION_COMPLETION_PARAMS,
+        },
+        (data) => onToken(data.token),
+      );
+
+      return cleanModelOutput(result.text);
+    },
+    [],
+  );
+
   return {
     translate,
+    translateStreaming,
     downloadAndLoad,
     cancelDownload,
     releaseModel,

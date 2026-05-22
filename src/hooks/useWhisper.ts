@@ -93,7 +93,7 @@ export function useWhisper() {
       ...(language ? { language } : {}),
       maxLen: 1,
       tokenTimestamps: false,
-      realtimeAudioSec: 30,
+      realtimeAudioSec: 300,
       audioSessionOnStartIos: {
         category: 'PlayAndRecord',
         options: ['DefaultToSpeaker', 'AllowBluetooth'],

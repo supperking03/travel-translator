@@ -479,8 +479,8 @@ export default function SettingsScreen() {
           downloadProgress={whisperDownloadProgress}
           isDark={isDark}
           colors={C}
-          title="Voice Recognition"
-          subtitle="Offline speech-to-text for cabin translation (~142 MB)"
+          title="Gói dịch cabin / realtime"
+          subtitle="Nhận diện giọng nói offline cho chế độ dịch realtime (~142 MB)"
           sizeMB={WHISPER_MODEL_SIZE_MB}
         >
           {whisperNotDownloaded && !whisperIsDownloading && !whisperIsLoading && (
