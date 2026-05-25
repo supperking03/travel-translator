@@ -4,3 +4,10 @@
 
 expo-env.d.ts
 # @end expo-cli
+
+# Build artifacts (xcarchive + dSYM blow past GitHub's 100MB file limit)
+build/
+.expo/
+
+# OS junk
+.DS_Store

@@ -44,9 +44,7 @@ const OCR_TRANSLATION_BATCH_CHAR_LIMIT = 900;
 const OCR_TRANSLATION_BATCH_ITEM_LIMIT = 12;
 // Wait after the last Whisper partial before flushing. Whisper revises partials inside
 // each 5s slice — bail out too early and we translate text Whisper is still rewriting.
-// 1200ms is enough to outlast typical intra-slice revisions and naturally groups
-// successive sentences that the speaker dictates without a long pause.
-const CABIN_PUNCT_CONFIRM_MS = 1200;
+const CABIN_PUNCT_CONFIRM_MS = 700;
 // Safety nets: if speaker rambles without periods, eventually flush anyway.
 const CABIN_FORCE_FLUSH_MS = 12000;
 const CABIN_FORCE_FLUSH_CHARS = 220;
@@ -528,6 +526,7 @@ const CabinResultPanel = React.memo(function CabinResultPanel({
       >
         {text.split('\n').filter(Boolean).map((line, idx, arr) => {
           const distFromEnd = arr.length - 1 - idx;
+          // Only the newest line stays at full brightness; older lines fade so the eye stays on what's current.
           const opacity = distFromEnd === 0 ? 1 : distFromEnd === 1 ? 0.45 : 0.22;
           return (
             <Text
@@ -635,13 +634,16 @@ export default function TranslatorScreen() {
     const snapshot = cabinPendingTextRef.current;
     const pending = snapshot.slice(cabinLastPosRef.current);
 
-    // Pick the flush boundary. Without force, we only flush completed sentences.
+    // Pick the flush boundary. With force=false, prefer the last sentence terminator —
+    // but if none is present we still flush the entire pending portion, because the timer
+    // firing means Whisper has been silent long enough to treat as a soft sentence break.
     let boundary = pending.length;
     if (!force) {
       const matches = [...pending.matchAll(CABIN_SENTENCE_END_RE)];
-      if (matches.length === 0) return;
-      const last = matches[matches.length - 1];
-      boundary = (last.index ?? 0) + last[0].length;
+      if (matches.length > 0) {
+        const last = matches[matches.length - 1];
+        boundary = (last.index ?? 0) + last[0].length;
+      }
     }
 
     const portion = pending.slice(0, boundary).trim();
@@ -665,9 +667,7 @@ export default function TranslatorScreen() {
             cabinAccumRef.current = cabinAccumRef.current.slice(-20);
           }
         }
-        // Join with a space so multiple flushes read as one continuous paragraph
-        // instead of a stack of "petty" mini-lines.
-        setCabinDisplayText(cabinAccumRef.current.join(' '));
+        setCabinDisplayText(cabinAccumRef.current.join('\n'));
         setTimeout(() => outerScrollRef.current?.scrollToEnd({ animated: true }), 80);
         cabinLastPosRef.current = Math.min(absBoundary, cabinPendingTextRef.current.length);
       }
@@ -682,9 +682,10 @@ export default function TranslatorScreen() {
     }
   }, [translate]);
 
-  // Decide when to flush: wait for a sentence terminator (.!?。！？) in the new portion,
-  // give Whisper a brief window to revise, then translate the completed sentence(s).
-  // Safety nets force-flush if the buffer grows too large or stalls without punctuation.
+  // Decide when to flush. Two triggers, same timer:
+  //   1. Sentence terminator (.!?。！？) in the new portion → wait for Whisper to settle, flush up to it.
+  //   2. ~500ms of silence (no new partial) → treat as a soft sentence break, flush whatever's pending.
+  // Safety nets force-flush if the buffer overflows or stalls without any boundary signal.
   const scheduleCabinFlush = useCallback((text: string) => {
     if (text.length < cabinLastPosRef.current) cabinLastPosRef.current = text.length;
     cabinPendingTextRef.current = text;
@@ -692,9 +693,6 @@ export default function TranslatorScreen() {
 
     const pending = text.slice(cabinLastPosRef.current);
     if (pending.trim().length < 2) return;
-
-    const matches = [...pending.matchAll(CABIN_SENTENCE_END_RE)];
-    const hasPunctuation = matches.length > 0;
 
     const elapsedSinceFlush =
       cabinLastFlushAtRef.current > 0 ? Date.now() - cabinLastFlushAtRef.current : 0;
@@ -710,8 +708,9 @@ export default function TranslatorScreen() {
       return;
     }
 
-    if (!hasPunctuation) return; // wait for sentence to finish
-
+    // Always (re)schedule. Every new partial resets the timer; when it actually fires,
+    // the user has been silent for CABIN_PUNCT_CONFIRM_MS — either after a sentence
+    // terminator or just a natural pause. Either way it's a flush point.
     if (cabinTimerRef.current) clearTimeout(cabinTimerRef.current);
     cabinTimerRef.current = setTimeout(() => { void flushCabinTranslation(); }, CABIN_PUNCT_CONFIRM_MS);
   }, [flushCabinTranslation]);
@@ -770,7 +769,9 @@ export default function TranslatorScreen() {
           cabinLastPosRef.current = 0;
           cabinPendingTextRef.current = '';
           cabinLastFlushAtRef.current = 0;
-          setSourceText('');
+          // Don't clear sourceText here — it'd blank out the user's last utterance while a
+          // translation is still in flight, looking like the input vanished. Leave it visible;
+          // the new session's first partial will overwrite it when fresh speech arrives.
           // Auto-restart if user hasn't stopped cabin mode
           if (isCabinModeRef.current) {
             void startCabinSessionRef.current?.();
