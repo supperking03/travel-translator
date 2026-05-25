@@ -91,9 +91,16 @@ export function useWhisper() {
 
     const { stop, subscribe } = await _whisperContext.transcribeRealtime({
       ...(language ? { language } : {}),
-      maxLen: 1,
+      // maxLen: 0 = no per-segment char cap; emit the full chunk as one segment.
+      // Previous value of 1 was forcing per-character segmentation and slowing partials.
+      maxLen: 0,
       tokenTimestamps: false,
-      realtimeAudioSec: 300,
+      // Session length matches whisper.cpp's 30s sweet spot — auto-restart handles longer use.
+      realtimeAudioSec: 30,
+      // Process audio in 5s slices so partials show up snappier instead of waiting on a long window.
+      realtimeAudioSliceSec: 5,
+      // Fire the first transcription after 0.5s of audio (default is 1s) for a faster first word.
+      realtimeAudioMinSec: 0.5,
       audioSessionOnStartIos: {
         category: 'PlayAndRecord',
         options: ['DefaultToSpeaker', 'AllowBluetooth'],

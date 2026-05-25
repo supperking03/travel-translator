@@ -173,9 +173,17 @@ export function useLlama() {
     [],
   );
 
+  const stopCompletion = useCallback(async () => {
+    if (!_llamaContext) return;
+    try {
+      await _llamaContext.stopCompletion();
+    } catch { /* best-effort abort */ }
+  }, []);
+
   return {
     translate,
     translateStreaming,
+    stopCompletion,
     downloadAndLoad,
     cancelDownload,
     releaseModel,

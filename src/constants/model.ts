@@ -25,7 +25,15 @@ export const TRANSLATION_COMPLETION_PARAMS = {
   temperature: 0.7,
   top_p: 0.8,
   top_k: 20,
-  repeat_penalty: 1.05,
+  // llama.rn uses penalty_* names; repeat_penalty/repeat_last_n are silently ignored.
+  penalty_repeat: 1.15,
+  penalty_last_n: 128,
+  // DRY (Don't Repeat Yourself) sampler — exponentially penalizes any repeated
+  // n-gram, kills loops like "tốt quá, tốt quá…" or whole-phrase echoes from
+  // garbled Whisper input. Standard recommended value.
+  dry_multiplier: 0.8,
+  dry_base: 1.75,
+  dry_allowed_length: 2,
 };
 
 // Strip model meta-tags, prompt leakage, and formatting artifacts from output

@@ -42,6 +42,15 @@ type ImageTranslatePhase = 'idle' | 'ocr' | 'translating' | 'done' | 'error';
 type ResultMode = 'text' | 'image';
 const OCR_TRANSLATION_BATCH_CHAR_LIMIT = 900;
 const OCR_TRANSLATION_BATCH_ITEM_LIMIT = 12;
+// Wait after the last Whisper partial before flushing. Whisper revises partials inside
+// each 5s slice — bail out too early and we translate text Whisper is still rewriting.
+// 1200ms is enough to outlast typical intra-slice revisions and naturally groups
+// successive sentences that the speaker dictates without a long pause.
+const CABIN_PUNCT_CONFIRM_MS = 1200;
+// Safety nets: if speaker rambles without periods, eventually flush anyway.
+const CABIN_FORCE_FLUSH_MS = 12000;
+const CABIN_FORCE_FLUSH_CHARS = 220;
+const CABIN_SENTENCE_END_RE = /[.!?。！？]/g;
 const SUPPORTED_TEXT_FILE_EXTENSIONS = new Set([
   'txt', 'md', 'csv', 'json', 'xml', 'html', 'htm', 'log', 'yaml', 'yml',
 ]);
@@ -573,19 +582,25 @@ export default function TranslatorScreen() {
   const swapAngle = useRef(0);
   const swapAnim  = useRef(new Animated.Value(0)).current;
 
-  const { translate, translateStreaming, isReady } = useLlama();
+  const { translate, stopCompletion, isReady } = useLlama();
   const whisper = useWhisper();
 
   const [isCabinMode, setIsCabinMode] = useState(false);
   const cabinPulseAnim  = useRef(new Animated.Value(1)).current;
   const isCabinModeRef  = useRef(false);
 
-  // Sentence-queue streaming state
-  const cabinAccumRef      = useRef<string[]>([]);   // finalized translated sentences
-  const cabinQueueRef      = useRef<string[]>([]);   // sentences waiting translation
-  const cabinLastPosRef    = useRef(0);              // chars of source already queued
-  const cabinStreamRef     = useRef<string[]>([]);   // tokens of sentence being streamed
-  const cabinProcessingRef = useRef(false);          // queue loop running?
+  // Silence-debounced streaming state: translate full utterance after a pause,
+  // not sentence-by-sentence — preserves context, avoids LLM repetition loops on garbled chunks.
+  const cabinAccumRef       = useRef<string[]>([]);  // finalized translation chunks
+  const cabinLastPosRef     = useRef(0);             // chars of source already translated
+  const cabinPendingTextRef = useRef('');            // latest full transcript from Whisper
+  const cabinProcessingRef  = useRef(false);         // translation in flight?
+  const cabinTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cabinLastFlushAtRef = useRef(0);             // ms timestamp of last flush start
+  // Epoch bumps on cabin start/stop and Whisper session restart. In-flight translations
+  // that captured an older epoch will skip the state-update at the end of their await,
+  // so a stale lastPos can't corrupt the new session.
+  const cabinEpochRef       = useRef(0);
 
   // Keep refs in sync so callbacks don't go stale
   const sourceLangRef = useRef(sourceLang);
@@ -607,69 +622,110 @@ export default function TranslatorScreen() {
     return () => loop.stop();
   }, [isCabinMode, cabinPulseAnim]);
 
-  // Process queued sentences one at a time, streaming each translation token-by-token
-  const runCabinQueue = useCallback(async () => {
+  // Flush the pending Whisper transcript to the translator.
+  //   force=false → only flush up to the last sentence-ending punctuation
+  //   force=true  → flush the entire pending portion (used by safety nets, session-end)
+  const flushCabinTranslation = useCallback(async (force: boolean = false) => {
     if (cabinProcessingRef.current) return;
+    if (cabinTimerRef.current) {
+      clearTimeout(cabinTimerRef.current);
+      cabinTimerRef.current = null;
+    }
+
+    const snapshot = cabinPendingTextRef.current;
+    const pending = snapshot.slice(cabinLastPosRef.current);
+
+    // Pick the flush boundary. Without force, we only flush completed sentences.
+    let boundary = pending.length;
+    if (!force) {
+      const matches = [...pending.matchAll(CABIN_SENTENCE_END_RE)];
+      if (matches.length === 0) return;
+      const last = matches[matches.length - 1];
+      boundary = (last.index ?? 0) + last[0].length;
+    }
+
+    const portion = pending.slice(0, boundary).trim();
+    if (portion.length < 2) return;
+    const absBoundary = cabinLastPosRef.current + boundary;
+
     cabinProcessingRef.current = true;
+    cabinLastFlushAtRef.current = Date.now();
+    setCabinIsThinking(true);
+    const epoch = cabinEpochRef.current;
 
-    while (cabinQueueRef.current.length > 0) {
-      const sentence = cabinQueueRef.current.shift()!;
-      cabinStreamRef.current = [];
-
-      try {
-        await translateStreaming(
-          sentence,
-          sourceLangRef.current,
-          targetLangRef.current,
-          (token) => {
-            cabinStreamRef.current.push(token);
-            const raw = cabinStreamRef.current.join('');
-            const hasOpenThink = raw.includes('<think>') && !raw.includes('</think>');
-            setCabinIsThinking(hasOpenThink);
-            const visible = cleanModelOutput(raw);
-            if (visible) {
-              setCabinDisplayText([...cabinAccumRef.current, visible].filter(Boolean).join('\n'));
-            }
-          },
-        );
-        setCabinIsThinking(false);
-        const final = cleanModelOutput(cabinStreamRef.current.join(''));
+    try {
+      const result = await translate(portion, sourceLangRef.current, targetLangRef.current);
+      // Skip state updates if cabin was reset/restarted while we were translating —
+      // otherwise we'd advance lastPos past the new session's transcript and stall scheduleCabinFlush.
+      if (cabinEpochRef.current === epoch) {
+        const final = cleanModelOutput(result);
         if (final) {
           cabinAccumRef.current.push(final);
-          // Keep last 20 sentences for performance
           if (cabinAccumRef.current.length > 20) {
             cabinAccumRef.current = cabinAccumRef.current.slice(-20);
           }
         }
-        setCabinDisplayText(cabinAccumRef.current.join('\n'));
+        // Join with a space so multiple flushes read as one continuous paragraph
+        // instead of a stack of "petty" mini-lines.
+        setCabinDisplayText(cabinAccumRef.current.join(' '));
         setTimeout(() => outerScrollRef.current?.scrollToEnd({ animated: true }), 80);
-      } catch { /* silent — cabin is best-effort */ }
-    }
+        cabinLastPosRef.current = Math.min(absBoundary, cabinPendingTextRef.current.length);
+      }
+    } catch { /* silent — cabin is best-effort */ }
 
+    if (cabinEpochRef.current === epoch) setCabinIsThinking(false);
     cabinProcessingRef.current = false;
-  }, [translateStreaming]);
 
-  // Extract and queue any newly-complete sentences from Whisper partial text
-  const enqueueCabinSentences = useCallback((text: string) => {
-    const portion = text.slice(cabinLastPosRef.current);
-    const regex = /[^.!?。！？\n]+[.!?。！？\n]+/g;
-    let match: RegExpExecArray | null;
-    let lastEnd = 0;
+    // If more sentences accumulated during translation, schedule a re-check.
+    if (cabinPendingTextRef.current.length - cabinLastPosRef.current > 1) {
+      cabinTimerRef.current = setTimeout(() => { void flushCabinTranslation(); }, CABIN_PUNCT_CONFIRM_MS);
+    }
+  }, [translate]);
 
-    while ((match = regex.exec(portion)) !== null) {
-      const s = match[0].trim();
-      if (s.length > 1) cabinQueueRef.current.push(s);
-      lastEnd = match.index + match[0].length;
+  // Decide when to flush: wait for a sentence terminator (.!?。！？) in the new portion,
+  // give Whisper a brief window to revise, then translate the completed sentence(s).
+  // Safety nets force-flush if the buffer grows too large or stalls without punctuation.
+  const scheduleCabinFlush = useCallback((text: string) => {
+    if (text.length < cabinLastPosRef.current) cabinLastPosRef.current = text.length;
+    cabinPendingTextRef.current = text;
+    if (cabinProcessingRef.current) return;
+
+    const pending = text.slice(cabinLastPosRef.current);
+    if (pending.trim().length < 2) return;
+
+    const matches = [...pending.matchAll(CABIN_SENTENCE_END_RE)];
+    const hasPunctuation = matches.length > 0;
+
+    const elapsedSinceFlush =
+      cabinLastFlushAtRef.current > 0 ? Date.now() - cabinLastFlushAtRef.current : 0;
+    const overBuffer = pending.length > CABIN_FORCE_FLUSH_CHARS;
+    const overTime = elapsedSinceFlush > CABIN_FORCE_FLUSH_MS && pending.length >= 40;
+
+    if (overBuffer || overTime) {
+      if (cabinTimerRef.current) {
+        clearTimeout(cabinTimerRef.current);
+        cabinTimerRef.current = null;
+      }
+      void flushCabinTranslation(true);
+      return;
     }
 
-    cabinLastPosRef.current += lastEnd;
-    void runCabinQueue();
-  }, [runCabinQueue]);
+    if (!hasPunctuation) return; // wait for sentence to finish
+
+    if (cabinTimerRef.current) clearTimeout(cabinTimerRef.current);
+    cabinTimerRef.current = setTimeout(() => { void flushCabinTranslation(); }, CABIN_PUNCT_CONFIRM_MS);
+  }, [flushCabinTranslation]);
 
   const stopCabinMode = useCallback(async () => {
     setIsCabinMode(false);
+    cabinEpochRef.current += 1;
+    if (cabinTimerRef.current) {
+      clearTimeout(cabinTimerRef.current);
+      cabinTimerRef.current = null;
+    }
+    if (cabinProcessingRef.current) void stopCompletion();
     await whisper.stopListening();
-  }, [whisper]);
+  }, [whisper, stopCompletion]);
 
   const clearImagePreview = useCallback(() => {
     setImagePhase('idle');
@@ -692,19 +748,28 @@ export default function TranslatorScreen() {
           const clean = stripWhisperNoise(partial);
           const display = clean.length > 1200 ? '…' + clean.slice(-1000) : clean;
           setSourceText(display);
-          enqueueCabinSentences(clean);
+          scheduleCabinFlush(clean);
         },
-        (final) => {
-          const clean = stripWhisperNoise(final);
-          if (clean.trim()) {
-            const remaining = clean.slice(cabinLastPosRef.current).trim();
-            if (remaining.length > 1) {
-              cabinQueueRef.current.push(remaining);
-              void runCabinQueue();
-            }
+        async (final) => {
+          if (cabinTimerRef.current) {
+            clearTimeout(cabinTimerRef.current);
+            cabinTimerRef.current = null;
           }
-          // Reset per-session state for restart
+          const clean = stripWhisperNoise(final);
+          if (clean.trim() && clean.length > cabinLastPosRef.current) {
+            cabinPendingTextRef.current = clean;
+            // Session ended → flush whatever remains, even if it has no terminal punctuation.
+            await flushCabinTranslation(true);
+          }
+          // Abort any still-running translate (its result will be discarded by the epoch check)
+          // so the next session's first flush isn't blocked by a stale in-flight call.
+          if (cabinProcessingRef.current) void stopCompletion();
+          // Bump epoch before resetting so a late-returning translate from this session
+          // can't overwrite the new session's lastPos.
+          cabinEpochRef.current += 1;
           cabinLastPosRef.current = 0;
+          cabinPendingTextRef.current = '';
+          cabinLastFlushAtRef.current = 0;
           setSourceText('');
           // Auto-restart if user hasn't stopped cabin mode
           if (isCabinModeRef.current) {
@@ -718,7 +783,7 @@ export default function TranslatorScreen() {
       setIsCabinMode(false);
       Alert.alert('Voice Error', err instanceof Error ? err.message : 'Failed to start voice input.');
     }
-  }, [whisper, setSourceText, enqueueCabinSentences, runCabinQueue]);
+  }, [whisper, setSourceText, scheduleCabinFlush, flushCabinTranslation]);
 
   useEffect(() => { startCabinSessionRef.current = startCabinSession; }, [startCabinSession]);
 
@@ -741,11 +806,16 @@ export default function TranslatorScreen() {
     clearImagePreview();
 
     // Reset cabin state
+    cabinEpochRef.current += 1;
     cabinAccumRef.current = [];
-    cabinQueueRef.current = [];
     cabinLastPosRef.current = 0;
-    cabinStreamRef.current = [];
+    cabinPendingTextRef.current = '';
     cabinProcessingRef.current = false;
+    cabinLastFlushAtRef.current = 0;
+    if (cabinTimerRef.current) {
+      clearTimeout(cabinTimerRef.current);
+      cabinTimerRef.current = null;
+    }
     setCabinDisplayText('');
     setCabinIsThinking(false);
     setIsCabinMode(true);
@@ -784,27 +854,19 @@ export default function TranslatorScreen() {
   }, [translatedText, t.mCopied]);
 
   const handleClear = useCallback(() => {
-    if (isCabinModeRef.current) {
-      setIsCabinMode(false);
-      cabinQueueRef.current = [];
-      void whisper.stopListening();
-    }
+    if (isCabinModeRef.current) void stopCabinMode();
     clearImagePreview();
     setSourceText('');
     setTranslatedText('');
     setIsSpeaking(false);
     inputRef.current?.focus();
-  }, [clearImagePreview, setSourceText, setTranslatedText, whisper]);
+  }, [clearImagePreview, setSourceText, setTranslatedText, stopCabinMode]);
 
   const handleSourceTextChange = useCallback((text: string) => {
-    if (isCabinModeRef.current) {
-      setIsCabinMode(false);
-      cabinQueueRef.current = [];
-      void whisper.stopListening();
-    }
+    if (isCabinModeRef.current) void stopCabinMode();
     if (imagePreviewUri) clearImagePreview();
     setSourceText(text);
-  }, [clearImagePreview, imagePreviewUri, setSourceText, whisper]);
+  }, [clearImagePreview, imagePreviewUri, setSourceText, stopCabinMode]);
 
   const processImageTranslation = useCallback(async (uri: string) => {
     if (!isReady) {
