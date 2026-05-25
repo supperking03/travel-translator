@@ -600,6 +600,9 @@ export default function TranslatorScreen() {
   // that captured an older epoch will skip the state-update at the end of their await,
   // so a stale lastPos can't corrupt the new session.
   const cabinEpochRef       = useRef(0);
+  // Transcripts of previously-ended Whisper sessions kept around so the input field
+  // doesn't go blank when a new session starts emitting tiny early partials.
+  const cabinDisplayHistoryRef = useRef('');
 
   // Keep refs in sync so callbacks don't go stale
   const sourceLangRef = useRef(sourceLang);
@@ -723,6 +726,7 @@ export default function TranslatorScreen() {
       cabinTimerRef.current = null;
     }
     if (cabinProcessingRef.current) void stopCompletion();
+    cabinDisplayHistoryRef.current = '';
     await whisper.stopListening();
   }, [whisper, stopCompletion]);
 
@@ -745,7 +749,14 @@ export default function TranslatorScreen() {
         cabinLangCodeRef.current,
         (partial) => {
           const clean = stripWhisperNoise(partial);
-          const display = clean.length > 1200 ? '…' + clean.slice(-1000) : clean;
+          // Skip empty partials — they'd blank out the user's last transcript.
+          if (!clean) return;
+          // Prepend any prior session's transcript so the input doesn't go blank when
+          // a new Whisper session restarts and emits short early partials.
+          const combined = cabinDisplayHistoryRef.current
+            ? `${cabinDisplayHistoryRef.current} ${clean}`
+            : clean;
+          const display = combined.length > 1200 ? '…' + combined.slice(-1000) : combined;
           setSourceText(display);
           scheduleCabinFlush(clean);
         },
@@ -757,21 +768,34 @@ export default function TranslatorScreen() {
           const clean = stripWhisperNoise(final);
           if (clean.trim() && clean.length > cabinLastPosRef.current) {
             cabinPendingTextRef.current = clean;
-            // Session ended → flush whatever remains, even if it has no terminal punctuation.
+          }
+          // Wait for any in-flight translate to finish — don't kill it (that drops a
+          // sentence) and don't run a force-flush in parallel (the lock would skip it).
+          // After it settles, force-flush anything that's still untranslated so the
+          // tail of this session doesn't get lost when the new session starts.
+          const idleStart = Date.now();
+          while (cabinProcessingRef.current && Date.now() - idleStart < 15000) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+          if (cabinPendingTextRef.current.length > cabinLastPosRef.current) {
             await flushCabinTranslation(true);
           }
-          // Abort any still-running translate (its result will be discarded by the epoch check)
-          // so the next session's first flush isn't blocked by a stale in-flight call.
-          if (cabinProcessingRef.current) void stopCompletion();
-          // Bump epoch before resetting so a late-returning translate from this session
-          // can't overwrite the new session's lastPos.
+          // Preserve this session's transcript so the next session's early partials
+          // don't visually erase what the user just dictated.
+          if (clean.trim()) {
+            const trimmed = clean.trim();
+            const updated = cabinDisplayHistoryRef.current
+              ? `${cabinDisplayHistoryRef.current} ${trimmed}`
+              : trimmed;
+            cabinDisplayHistoryRef.current = updated.length > 1500
+              ? '…' + updated.slice(-1400)
+              : updated;
+          }
+          // Bump epoch so any straggler translation can't write back into the new session.
           cabinEpochRef.current += 1;
           cabinLastPosRef.current = 0;
           cabinPendingTextRef.current = '';
           cabinLastFlushAtRef.current = 0;
-          // Don't clear sourceText here — it'd blank out the user's last utterance while a
-          // translation is still in flight, looking like the input vanished. Leave it visible;
-          // the new session's first partial will overwrite it when fresh speech arrives.
           // Auto-restart if user hasn't stopped cabin mode
           if (isCabinModeRef.current) {
             void startCabinSessionRef.current?.();
@@ -813,6 +837,7 @@ export default function TranslatorScreen() {
     cabinPendingTextRef.current = '';
     cabinProcessingRef.current = false;
     cabinLastFlushAtRef.current = 0;
+    cabinDisplayHistoryRef.current = '';
     if (cabinTimerRef.current) {
       clearTimeout(cabinTimerRef.current);
       cabinTimerRef.current = null;
