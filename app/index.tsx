@@ -25,6 +25,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as Speech from 'expo-speech';
+import { AudioSessionIos } from 'whisper.rn';
 import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-view';
 
 import { useStore } from '@/store/useStore';
@@ -35,20 +36,13 @@ import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem
 import { getLanguageByCode } from '@/constants/languages';
 import { useI18n } from '@/i18n/useI18n';
 import { recognizeTextBlocksFromImage, TextBlock } from '@/utils/imageTextRecognition';
-import { cleanModelOutput, stripWhisperNoise } from '@/constants/model';
+import { stripWhisperNoise } from '@/constants/model';
 
 type TranslatedBlock = TextBlock & { translated: string; isPending: boolean };
 type ImageTranslatePhase = 'idle' | 'ocr' | 'translating' | 'done' | 'error';
 type ResultMode = 'text' | 'image';
 const OCR_TRANSLATION_BATCH_CHAR_LIMIT = 900;
 const OCR_TRANSLATION_BATCH_ITEM_LIMIT = 12;
-// Wait after the last Whisper partial before flushing. Whisper revises partials inside
-// each 5s slice — bail out too early and we translate text Whisper is still rewriting.
-const CABIN_PUNCT_CONFIRM_MS = 700;
-// Safety nets: if speaker rambles without periods, eventually flush anyway.
-const CABIN_FORCE_FLUSH_MS = 12000;
-const CABIN_FORCE_FLUSH_CHARS = 220;
-const CABIN_SENTENCE_END_RE = /[.!?。！？]/g;
 const SUPPORTED_TEXT_FILE_EXTENSIONS = new Set([
   'txt', 'md', 'csv', 'json', 'xml', 'html', 'htm', 'log', 'yaml', 'yml',
 ]);
@@ -151,11 +145,12 @@ async function translateBlockBatch(
 
 // ─── Translate button ─────────────────────────────────────────────────────────
 function TranslateButton({
-  onPress, disabled, isTranslating, colors, isDark,
+  onPress, disabled, isTranslating, isCabinMode, colors, isDark,
 }: {
   onPress: () => void;
   disabled: boolean;
   isTranslating: boolean;
+  isCabinMode: boolean;
   colors: DSColors;
   isDark: boolean;
 }) {
@@ -164,7 +159,21 @@ function TranslateButton({
   const onIn  = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 40 }).start();
   const onOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 20 }).start();
 
-  const isEmpty = disabled && !isTranslating;
+  // Pulsing "listening" dot while cabin mode is recording, so the button reads as live.
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!isCabinMode) { pulse.setValue(1); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.25, duration: 650, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1,    duration: 650, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isCabinMode, pulse]);
+
+  const isEmpty = disabled && !isTranslating && !isCabinMode;
 
   return (
     <TouchableOpacity
@@ -190,6 +199,13 @@ function TranslateButton({
           <>
             <ActivityIndicator color={colors.background} size="small" />
             <Text style={[styles.translateBtnText, { color: colors.background }]}>{t.mTranslating}</Text>
+          </>
+        ) : isCabinMode ? (
+          <>
+            <Animated.View style={[styles.translateBtnPulseDot, { backgroundColor: colors.background, opacity: pulse }]} />
+            <Text style={[styles.translateBtnText, { color: colors.background }]}>
+              {t.mStopAndTranslate ?? 'Stop & Translate'}
+            </Text>
           </>
         ) : (
           <>
@@ -460,89 +476,6 @@ function TranslationResultCard({
   );
 }
 
-// ─── Thinking dots ────────────────────────────────────────────────────────────
-function ThinkingDots({ color }: { color: string }) {
-  const opacity = useRef(new Animated.Value(0.35)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 500, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.35, duration: 500, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [opacity]);
-  return (
-    <Animated.Text style={{ color, opacity, fontSize: 22, letterSpacing: 5, marginTop: 6 }}>
-      . . .
-    </Animated.Text>
-  );
-}
-
-// ─── Cabin result panel ───────────────────────────────────────────────────────
-const CabinResultPanel = React.memo(function CabinResultPanel({
-  text, isCabinMode, isThinking, targetLangCode, colors, isDark,
-}: {
-  text: string;
-  isCabinMode: boolean;
-  isThinking: boolean;
-  targetLangCode: string;
-  colors: DSColors;
-  isDark: boolean;
-}) {
-  const innerScrollRef = useRef<ScrollView>(null);
-  const lang = getLanguageByCode(targetLangCode);
-
-  useEffect(() => {
-    innerScrollRef.current?.scrollToEnd({ animated: true });
-  }, [text, isThinking]);
-
-  return (
-    <View style={[
-      styles.cabinPanel,
-      { backgroundColor: colors.surface, borderColor: colors.primary + '35' },
-      DS.shadow.level2(isDark),
-    ]}>
-      <View style={[styles.cabinPanelAccent, { backgroundColor: colors.primary }]} />
-      <View style={[styles.cabinPanelHeader, { borderBottomColor: colors.border }]}>
-        <Text style={styles.cabinPanelFlag}>{lang?.flag ?? '🌐'}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.cabinPanelLabel, { color: colors.textMuted }]}>LIVE TRANSLATION</Text>
-          <Text style={[styles.cabinPanelLang, { color: colors.primary }]}>{lang?.name ?? 'Unknown'}</Text>
-        </View>
-        {isCabinMode && (
-          <View style={styles.cabinLiveBadge}>
-            <View style={[styles.cabinLiveDot, { backgroundColor: colors.primary }]} />
-            <Text style={[styles.cabinLiveText, { color: colors.primary }]}>Listening</Text>
-          </View>
-        )}
-      </View>
-      <ScrollView
-        ref={innerScrollRef}
-        style={styles.cabinPanelScroll}
-        contentContainerStyle={styles.cabinPanelScrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {text.split('\n').filter(Boolean).map((line, idx, arr) => {
-          const distFromEnd = arr.length - 1 - idx;
-          // Only the newest line stays at full brightness; older lines fade so the eye stays on what's current.
-          const opacity = distFromEnd === 0 ? 1 : distFromEnd === 1 ? 0.45 : 0.22;
-          return (
-            <Text
-              key={idx}
-              style={[styles.cabinPanelText, { color: colors.textPrimary, opacity, marginBottom: 6 }]}
-            >
-              {line}
-            </Text>
-          );
-        })}
-        {isThinking && <ThinkingDots color={colors.textMuted} />}
-      </ScrollView>
-    </View>
-  );
-});
-
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function TranslatorScreen() {
   const C       = useDSColors();
@@ -572,8 +505,6 @@ export default function TranslatorScreen() {
     onboardingComplete,
   } = useStore();
 
-  const [cabinDisplayText, setCabinDisplayText] = useState('');
-  const [cabinIsThinking, setCabinIsThinking] = useState(false);
   const outerScrollRef = useRef<ScrollView>(null);
   const cabinLangCodeRef = useRef<string | undefined>(undefined);
   const startCabinSessionRef = useRef<(() => Promise<void>) | null>(null);
@@ -581,28 +512,17 @@ export default function TranslatorScreen() {
   const swapAngle = useRef(0);
   const swapAnim  = useRef(new Animated.Value(0)).current;
 
-  const { translate, stopCompletion, isReady } = useLlama();
+  const { translate, isReady } = useLlama();
   const whisper = useWhisper();
 
   const [isCabinMode, setIsCabinMode] = useState(false);
   const cabinPulseAnim  = useRef(new Animated.Value(1)).current;
   const isCabinModeRef  = useRef(false);
 
-  // Silence-debounced streaming state: translate full utterance after a pause,
-  // not sentence-by-sentence — preserves context, avoids LLM repetition loops on garbled chunks.
-  const cabinAccumRef       = useRef<string[]>([]);  // finalized translation chunks
-  const cabinLastPosRef     = useRef(0);             // chars of source already translated
-  const cabinPendingTextRef = useRef('');            // latest full transcript from Whisper
-  const cabinProcessingRef  = useRef(false);         // translation in flight?
-  const cabinTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cabinLastFlushAtRef = useRef(0);             // ms timestamp of last flush start
-  // Epoch bumps on cabin start/stop and Whisper session restart. In-flight translations
-  // that captured an older epoch will skip the state-update at the end of their await,
-  // so a stale lastPos can't corrupt the new session.
-  const cabinEpochRef       = useRef(0);
-  // Transcripts of previously-ended Whisper sessions kept around so the input field
-  // doesn't go blank when a new session starts emitting tiny early partials.
-  const cabinDisplayHistoryRef = useRef('');
+  // Cabin mode is pure speech-to-text now: Whisper transcribes into the input box and the
+  // user presses "Stop & Translate". This ref holds the running transcript across the 30s
+  // session auto-restarts so the input doesn't blank out between sessions.
+  const cabinTranscriptRef = useRef('');
 
   // Keep refs in sync so callbacks don't go stale
   const sourceLangRef = useRef(sourceLang);
@@ -611,7 +531,7 @@ export default function TranslatorScreen() {
   useEffect(() => { targetLangRef.current = targetLang; }, [targetLang]);
   useEffect(() => { isCabinModeRef.current = isCabinMode; }, [isCabinMode]);
 
-  // Pulse glow animation while listening
+  // Pulse glow animation on the mic button while listening
   useEffect(() => {
     if (!isCabinMode) { cabinPulseAnim.setValue(1); return; }
     const loop = Animated.loop(
@@ -624,111 +544,20 @@ export default function TranslatorScreen() {
     return () => loop.stop();
   }, [isCabinMode, cabinPulseAnim]);
 
-  // Flush the pending Whisper transcript to the translator.
-  //   force=false → only flush up to the last sentence-ending punctuation
-  //   force=true  → flush the entire pending portion (used by safety nets, session-end)
-  const flushCabinTranslation = useCallback(async (force: boolean = false) => {
-    if (cabinProcessingRef.current) return;
-    if (cabinTimerRef.current) {
-      clearTimeout(cabinTimerRef.current);
-      cabinTimerRef.current = null;
-    }
-
-    const snapshot = cabinPendingTextRef.current;
-    const pending = snapshot.slice(cabinLastPosRef.current);
-
-    // Pick the flush boundary. With force=false, prefer the last sentence terminator —
-    // but if none is present we still flush the entire pending portion, because the timer
-    // firing means Whisper has been silent long enough to treat as a soft sentence break.
-    let boundary = pending.length;
-    if (!force) {
-      const matches = [...pending.matchAll(CABIN_SENTENCE_END_RE)];
-      if (matches.length > 0) {
-        const last = matches[matches.length - 1];
-        boundary = (last.index ?? 0) + last[0].length;
-      }
-    }
-
-    const portion = pending.slice(0, boundary).trim();
-    if (portion.length < 2) return;
-    const absBoundary = cabinLastPosRef.current + boundary;
-
-    cabinProcessingRef.current = true;
-    cabinLastFlushAtRef.current = Date.now();
-    setCabinIsThinking(true);
-    const epoch = cabinEpochRef.current;
-
-    try {
-      const result = await translate(portion, sourceLangRef.current, targetLangRef.current);
-      // Skip state updates if cabin was reset/restarted while we were translating —
-      // otherwise we'd advance lastPos past the new session's transcript and stall scheduleCabinFlush.
-      if (cabinEpochRef.current === epoch) {
-        const final = cleanModelOutput(result);
-        if (final) {
-          cabinAccumRef.current.push(final);
-          if (cabinAccumRef.current.length > 20) {
-            cabinAccumRef.current = cabinAccumRef.current.slice(-20);
-          }
-        }
-        setCabinDisplayText(cabinAccumRef.current.join('\n'));
-        setTimeout(() => outerScrollRef.current?.scrollToEnd({ animated: true }), 80);
-        cabinLastPosRef.current = Math.min(absBoundary, cabinPendingTextRef.current.length);
-      }
-    } catch { /* silent — cabin is best-effort */ }
-
-    if (cabinEpochRef.current === epoch) setCabinIsThinking(false);
-    cabinProcessingRef.current = false;
-
-    // If more sentences accumulated during translation, schedule a re-check.
-    if (cabinPendingTextRef.current.length - cabinLastPosRef.current > 1) {
-      cabinTimerRef.current = setTimeout(() => { void flushCabinTranslation(); }, CABIN_PUNCT_CONFIRM_MS);
-    }
-  }, [translate]);
-
-  // Decide when to flush. Two triggers, same timer:
-  //   1. Sentence terminator (.!?。！？) in the new portion → wait for Whisper to settle, flush up to it.
-  //   2. ~500ms of silence (no new partial) → treat as a soft sentence break, flush whatever's pending.
-  // Safety nets force-flush if the buffer overflows or stalls without any boundary signal.
-  const scheduleCabinFlush = useCallback((text: string) => {
-    if (text.length < cabinLastPosRef.current) cabinLastPosRef.current = text.length;
-    cabinPendingTextRef.current = text;
-    if (cabinProcessingRef.current) return;
-
-    const pending = text.slice(cabinLastPosRef.current);
-    if (pending.trim().length < 2) return;
-
-    const elapsedSinceFlush =
-      cabinLastFlushAtRef.current > 0 ? Date.now() - cabinLastFlushAtRef.current : 0;
-    const overBuffer = pending.length > CABIN_FORCE_FLUSH_CHARS;
-    const overTime = elapsedSinceFlush > CABIN_FORCE_FLUSH_MS && pending.length >= 40;
-
-    if (overBuffer || overTime) {
-      if (cabinTimerRef.current) {
-        clearTimeout(cabinTimerRef.current);
-        cabinTimerRef.current = null;
-      }
-      void flushCabinTranslation(true);
-      return;
-    }
-
-    // Always (re)schedule. Every new partial resets the timer; when it actually fires,
-    // the user has been silent for CABIN_PUNCT_CONFIRM_MS — either after a sentence
-    // terminator or just a natural pause. Either way it's a flush point.
-    if (cabinTimerRef.current) clearTimeout(cabinTimerRef.current);
-    cabinTimerRef.current = setTimeout(() => { void flushCabinTranslation(); }, CABIN_PUNCT_CONFIRM_MS);
-  }, [flushCabinTranslation]);
+  // Reset the running transcript so the next cabin session starts clean.
+  const resetCabinState = useCallback(() => {
+    cabinTranscriptRef.current = '';
+  }, []);
 
   const stopCabinMode = useCallback(async () => {
+    // Flip the ref synchronously (not via the isCabinMode effect, which runs a render later)
+    // so the session's onDone auto-restart guard sees we're stopping and doesn't spin up a
+    // new whisper session into a tearing-down audio session — that races into the iOS
+    // "failed to set active" (560030580) error.
+    isCabinModeRef.current = false;
     setIsCabinMode(false);
-    cabinEpochRef.current += 1;
-    if (cabinTimerRef.current) {
-      clearTimeout(cabinTimerRef.current);
-      cabinTimerRef.current = null;
-    }
-    if (cabinProcessingRef.current) void stopCompletion();
-    cabinDisplayHistoryRef.current = '';
     await whisper.stopListening();
-  }, [whisper, stopCompletion]);
+  }, [whisper]);
 
   const clearImagePreview = useCallback(() => {
     setImagePhase('idle');
@@ -742,61 +571,31 @@ export default function TranslatorScreen() {
     setImageTotalCount(0);
   }, []);
 
-  // One whisper session (up to 5 min). Restarts automatically while cabin mode is still on.
+  // One whisper session (~30s). Restarts automatically while cabin mode is still on.
+  // Pure speech-to-text: partials/finals just stream into the input box — no translation.
   const startCabinSession = useCallback(async () => {
     try {
       await whisper.startListening(
         cabinLangCodeRef.current,
         (partial) => {
           const clean = stripWhisperNoise(partial);
-          // Skip empty partials — they'd blank out the user's last transcript.
+          // Skip empty partials — they'd blank out what the user already dictated.
           if (!clean) return;
-          // Prepend any prior session's transcript so the input doesn't go blank when
-          // a new Whisper session restarts and emits short early partials.
-          const combined = cabinDisplayHistoryRef.current
-            ? `${cabinDisplayHistoryRef.current} ${clean}`
-            : clean;
-          const display = combined.length > 1200 ? '…' + combined.slice(-1000) : combined;
-          setSourceText(display);
-          scheduleCabinFlush(clean);
+          // Append to the committed transcript from prior sessions so the input keeps the
+          // full text across the 30s session restarts.
+          const base = cabinTranscriptRef.current;
+          setSourceText(base ? `${base} ${clean}` : clean);
         },
-        async (final) => {
-          if (cabinTimerRef.current) {
-            clearTimeout(cabinTimerRef.current);
-            cabinTimerRef.current = null;
+        (final) => {
+          const clean = stripWhisperNoise(final).trim();
+          // Commit this session's final transcript to the running base.
+          if (clean) {
+            cabinTranscriptRef.current = cabinTranscriptRef.current
+              ? `${cabinTranscriptRef.current} ${clean}`
+              : clean;
+            setSourceText(cabinTranscriptRef.current);
           }
-          const clean = stripWhisperNoise(final);
-          if (clean.trim() && clean.length > cabinLastPosRef.current) {
-            cabinPendingTextRef.current = clean;
-          }
-          // Wait for any in-flight translate to finish — don't kill it (that drops a
-          // sentence) and don't run a force-flush in parallel (the lock would skip it).
-          // After it settles, force-flush anything that's still untranslated so the
-          // tail of this session doesn't get lost when the new session starts.
-          const idleStart = Date.now();
-          while (cabinProcessingRef.current && Date.now() - idleStart < 15000) {
-            await new Promise((resolve) => setTimeout(resolve, 50));
-          }
-          if (cabinPendingTextRef.current.length > cabinLastPosRef.current) {
-            await flushCabinTranslation(true);
-          }
-          // Preserve this session's transcript so the next session's early partials
-          // don't visually erase what the user just dictated.
-          if (clean.trim()) {
-            const trimmed = clean.trim();
-            const updated = cabinDisplayHistoryRef.current
-              ? `${cabinDisplayHistoryRef.current} ${trimmed}`
-              : trimmed;
-            cabinDisplayHistoryRef.current = updated.length > 1500
-              ? '…' + updated.slice(-1400)
-              : updated;
-          }
-          // Bump epoch so any straggler translation can't write back into the new session.
-          cabinEpochRef.current += 1;
-          cabinLastPosRef.current = 0;
-          cabinPendingTextRef.current = '';
-          cabinLastFlushAtRef.current = 0;
-          // Auto-restart if user hasn't stopped cabin mode
+          // Auto-restart while cabin mode is still on (covers utterances longer than one session).
           if (isCabinModeRef.current) {
             void startCabinSessionRef.current?.();
           } else {
@@ -805,10 +604,11 @@ export default function TranslatorScreen() {
         },
       );
     } catch (err) {
+      isCabinModeRef.current = false;
       setIsCabinMode(false);
-      Alert.alert('Voice Error', err instanceof Error ? err.message : 'Failed to start voice input.');
+      Alert.alert(t.mVoiceErrorTitle ?? 'Voice Error', err instanceof Error ? err.message : (t.mVoiceErrorDesc ?? 'Couldn’t start voice input.'));
     }
-  }, [whisper, setSourceText, scheduleCabinFlush, flushCabinTranslation]);
+  }, [whisper, setSourceText, t]);
 
   useEffect(() => { startCabinSessionRef.current = startCabinSession; }, [startCabinSession]);
 
@@ -817,11 +617,11 @@ export default function TranslatorScreen() {
 
     if (!whisper.isReady) {
       Alert.alert(
-        'Voice model not ready',
-        'Please download the voice recognition model in Settings to use cabin translation.',
+        t.mVoiceNotReadyTitle ?? 'Voice model not ready',
+        t.mVoiceNotReadyDesc ?? 'Download the speech-to-text model in Settings to use voice input.',
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Download', onPress: () => router.push('/settings') },
+          { text: t.aCancel, style: 'cancel' },
+          { text: t.aDownload, onPress: () => router.push('/settings') },
         ]
       );
       return;
@@ -830,28 +630,19 @@ export default function TranslatorScreen() {
     Keyboard.dismiss();
     clearImagePreview();
 
-    // Reset cabin state
-    cabinEpochRef.current += 1;
-    cabinAccumRef.current = [];
-    cabinLastPosRef.current = 0;
-    cabinPendingTextRef.current = '';
-    cabinProcessingRef.current = false;
-    cabinLastFlushAtRef.current = 0;
-    cabinDisplayHistoryRef.current = '';
-    if (cabinTimerRef.current) {
-      clearTimeout(cabinTimerRef.current);
-      cabinTimerRef.current = null;
-    }
-    setCabinDisplayText('');
-    setCabinIsThinking(false);
+    // Fresh transcript: cabin mode dictates straight into the input.
+    resetCabinState();
+    setSourceText('');
+    setTranslatedText('');
+    isCabinModeRef.current = true;
     setIsCabinMode(true);
 
     cabinLangCodeRef.current = sourceLang === 'auto' ? undefined : sourceLang;
     await startCabinSession();
-  }, [isCabinMode, whisper, sourceLang, clearImagePreview, stopCabinMode, startCabinSession]);
+  }, [isCabinMode, whisper, sourceLang, clearImagePreview, stopCabinMode, startCabinSession, resetCabinState, setSourceText, setTranslatedText, t, router]);
 
-  const handleTranslate = useCallback(async () => {
-    if (!sourceText.trim()) return;
+  const runTranslate = useCallback(async (text: string) => {
+    if (!text.trim()) return;
     if (!isReady) {
       router.push('/settings?focus=download');
       return;
@@ -861,9 +652,9 @@ export default function TranslatorScreen() {
       clearImagePreview();
       setIsTranslating(true);
       setTranslatedText('');
-      const result = await translate(sourceText, sourceLang, targetLang);
+      const result = await translate(text, sourceLangRef.current, targetLangRef.current);
       setTranslatedText(result);
-      addHistory({ sourceText, translatedText: result, sourceLang, targetLang });
+      addHistory({ sourceText: text, translatedText: result, sourceLang: sourceLangRef.current, targetLang: targetLangRef.current });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Translation failed';
       Alert.alert('Translation Error', msg);
@@ -871,7 +662,21 @@ export default function TranslatorScreen() {
       setIsTranslating(false);
     }
     setResultMode('text');
-  }, [sourceText, sourceLang, targetLang, isReady, translate, setIsTranslating, setTranslatedText, addHistory, router, clearImagePreview]);
+  }, [isReady, translate, setIsTranslating, setTranslatedText, addHistory, router, clearImagePreview]);
+
+  const handleTranslate = useCallback(() => {
+    void runTranslate(sourceText);
+  }, [runTranslate, sourceText]);
+
+  // Cabin mode button: translate whatever has been dictated into the input right away, and
+  // tear the mic down in the background. Awaiting the whisper capture-end before translating
+  // added a visible delay (button flashed "Translate" before "Translating…"), so we don't
+  // block on it — the input already holds the latest transcript.
+  const handleStopAndTranslate = useCallback(() => {
+    const text = useStore.getState().sourceText;
+    void stopCabinMode();
+    void runTranslate(text);
+  }, [stopCabinMode, runTranslate]);
 
   const handleCopy = useCallback(async () => {
     if (!translatedText) return;
@@ -881,12 +686,13 @@ export default function TranslatorScreen() {
 
   const handleClear = useCallback(() => {
     if (isCabinModeRef.current) void stopCabinMode();
+    resetCabinState();
     clearImagePreview();
     setSourceText('');
     setTranslatedText('');
     setIsSpeaking(false);
     inputRef.current?.focus();
-  }, [clearImagePreview, setSourceText, setTranslatedText, stopCabinMode]);
+  }, [clearImagePreview, setSourceText, setTranslatedText, stopCabinMode, resetCabinState]);
 
   const handleSourceTextChange = useCallback((text: string) => {
     if (isCabinModeRef.current) void stopCabinMode();
@@ -1093,27 +899,48 @@ export default function TranslatorScreen() {
     );
   }, [handlePickFile, handlePickPhoto, handleTakePhoto, t.aCancel, t.mChooseFile, t.mPhotoLibrary, t.mTakePhoto]);
 
-  const handleSpeak = useCallback(() => {
-    const lang = getLanguageByCode(targetLang);
-    if (!lang?.ttsLocale) return;
+  const speakText = useCallback(async (textToSpeak: string, langCode: string) => {
+    const lang = getLanguageByCode(langCode);
+    if (!lang?.ttsLocale || !textToSpeak.trim()) return;
     if (isSpeaking) {
       Speech.stop();
       setIsSpeaking(false);
       return;
     }
+    // Cabin mode (and any prior Whisper session) leaves the iOS audio session in the
+    // PlayAndRecord category, which routes TTS to the quiet earpiece at record-level gain.
+    // Force it back to Playback so speech comes out the main speaker at full media volume.
+    if (Platform.OS === 'ios') {
+      try {
+        await AudioSessionIos.setCategory(AudioSessionIos.Category.Playback, []);
+        await AudioSessionIos.setActive(true);
+      } catch { /* best-effort — fall through and speak anyway */ }
+    }
     setIsSpeaking(true);
-    Speech.speak(translatedText, {
+    Speech.speak(textToSpeak, {
       language: lang.ttsLocale,
       rate: 0.9,
       onDone:    () => setIsSpeaking(false),
       onError:   () => setIsSpeaking(false),
       onStopped: () => setIsSpeaking(false),
     });
-  }, [isSpeaking, translatedText, targetLang]);
+  }, [isSpeaking]);
+
+  const handleSpeak = useCallback(() => {
+    void speakText(translatedText, targetLang);
+  }, [speakText, translatedText, targetLang]);
 
   const handleSwap = useCallback(() => {
     setIsSpeaking(false);
-    swapLanguages();
+    // While cabin mode is recording, keep the dictated transcript in the input and just
+    // swap the languages — swapLanguages() would move the (empty) translatedText into the
+    // input and wipe the transcript.
+    if (isCabinModeRef.current) {
+      setSourceLang(targetLang);
+      setTargetLang(sourceLang);
+    } else {
+      swapLanguages();
+    }
     swapAngle.current += 360;
     Animated.spring(swapAnim, {
       toValue: swapAngle.current,
@@ -1121,7 +948,7 @@ export default function TranslatorScreen() {
       speed: 12,
       bounciness: 4,
     }).start();
-  }, [swapLanguages, swapAnim]);
+  }, [swapLanguages, swapAnim, sourceLang, targetLang, setSourceLang, setTargetLang]);
 
   const charNearLimit = sourceText.length > 9000;
   const isImageProcessing = imagePhase === 'ocr' || imagePhase === 'translating';
@@ -1185,7 +1012,7 @@ export default function TranslatorScreen() {
               ) : isCabinMode ? (
                 <View style={styles.listeningBadge}>
                   <View style={[styles.listeningDot, { backgroundColor: C.primary }]} />
-                  <Text style={[styles.listeningText, { color: C.primary }]}>Listening…</Text>
+                  <Text style={[styles.listeningText, { color: C.primary }]}>{t.mListening ?? 'Listening…'}</Text>
                 </View>
               ) : (
                 <View />
@@ -1253,25 +1080,15 @@ export default function TranslatorScreen() {
           </View>
 
           {/* ── Translate button ──────────────────────────────────────────── */}
+          {/* In cabin mode the button becomes "Stop & Translate": stop listening + translate. */}
           <TranslateButton
-            onPress={handleTranslate}
-            disabled={!sourceText.trim() || isTranslating || isCabinMode}
+            onPress={isCabinMode ? () => void handleStopAndTranslate() : handleTranslate}
+            disabled={isCabinMode ? false : (!sourceText.trim() || isTranslating)}
             isTranslating={isTranslating}
+            isCabinMode={isCabinMode}
             colors={C}
             isDark={isDark}
           />
-
-          {/* ── Cabin result panel ───────────────────────────────────────── */}
-          {(isCabinMode || cabinDisplayText !== '') && (
-            <CabinResultPanel
-              text={cabinDisplayText}
-              isCabinMode={isCabinMode}
-              isThinking={cabinIsThinking}
-              targetLangCode={targetLang}
-              colors={C}
-              isDark={isDark}
-            />
-          )}
 
           {/* ── Result / Loading ──────────────────────────────────────────── */}
           {!isCabinMode && shouldShowResult && (
@@ -1419,6 +1236,11 @@ const styles = StyleSheet.create({
     borderRadius: DS.radius.lg + 2,
   },
   translateBtnText: { ...DS.type.callout, fontWeight: '700' },
+  translateBtnPulseDot: {
+    width: 10,
+    height: 10,
+    borderRadius: DS.radius.full,
+  },
 
   // Empty state
   emptyState: {
@@ -1551,44 +1373,4 @@ const styles = StyleSheet.create({
   actionChipText: { ...DS.type.footnote, fontWeight: '600' },
 
   bottomSpacer: { height: DS.space.xl },
-
-  // Cabin result panel
-  cabinPanel: {
-    borderRadius: DS.radius.xl,
-    borderWidth: 1.5,
-    overflow: 'hidden',
-  },
-  cabinPanelAccent: { height: 3 },
-  cabinPanelHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: DS.space.sm + DS.space.xs,
-    paddingHorizontal: DS.space.md,
-    paddingVertical: DS.space.sm + DS.space.xs,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  cabinPanelFlag: { fontSize: DS.icon.lg },
-  cabinPanelLabel: { ...DS.type.label },
-  cabinPanelLang: { ...DS.type.subhead, fontWeight: '700' as const, marginTop: 1 },
-  cabinLiveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: DS.space.xs,
-  },
-  cabinLiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: DS.radius.full,
-  },
-  cabinLiveText: { ...DS.type.caption1, fontWeight: '600' as const },
-  cabinPanelScroll: { maxHeight: 220 },
-  cabinPanelScrollContent: {
-    padding: DS.space.md,
-    paddingTop: DS.space.sm + DS.space.xs,
-  },
-  cabinPanelText: {
-    ...DS.type.title3,
-    fontWeight: '500' as const,
-    lineHeight: 26,
-  },
 });

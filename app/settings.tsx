@@ -340,8 +340,8 @@ export default function SettingsScreen() {
 
   const handleWhisperDownload = () =>
     Alert.alert(
-      'Download Voice Model',
-      `~${WHISPER_MODEL_SIZE_MB} MB. Required for cabin translation (offline speech recognition).`,
+      t.sVoiceDownload ?? 'Download Voice Model',
+      `~${WHISPER_MODEL_SIZE_MB} MB · ${t.sVoiceDownloadConfirm ?? 'Required for voice input (offline speech recognition).'}`,
       [
         { text: t.aCancel, style: 'cancel' },
         { text: t.aDownload, onPress: whisper.downloadAndLoad },
@@ -350,7 +350,7 @@ export default function SettingsScreen() {
 
   const handleWhisperRedownload = () =>
     Alert.alert(
-      'Re-download Voice Model',
+      t.sVoiceRedownload ?? 'Re-download Voice Model',
       `~${WHISPER_MODEL_SIZE_MB} MB`,
       [
         { text: t.aCancel, style: 'cancel' },
@@ -366,8 +366,8 @@ export default function SettingsScreen() {
 
   const handleWhisperDelete = () =>
     Alert.alert(
-      'Delete Voice Model',
-      'This will disable cabin translation until you re-download.',
+      t.sVoiceDelete ?? 'Delete Voice Model',
+      t.sVoiceDeleteConfirm ?? 'This will disable voice input until you re-download.',
       [
         { text: t.aCancel, style: 'cancel' },
         {
@@ -479,14 +479,14 @@ export default function SettingsScreen() {
           downloadProgress={whisperDownloadProgress}
           isDark={isDark}
           colors={C}
-          title="Gói dịch cabin / realtime"
-          subtitle="Nhận diện giọng nói offline cho chế độ dịch realtime (~142 MB)"
+          title={t.sVoicePackTitle ?? 'Speech-to-Text Pack'}
+          subtitle={`${t.sVoicePackSub ?? 'Offline voice recognition for voice input'} (~${WHISPER_MODEL_SIZE_MB} MB)`}
           sizeMB={WHISPER_MODEL_SIZE_MB}
         >
           {whisperNotDownloaded && !whisperIsDownloading && !whisperIsLoading && (
             <View style={styles.primaryBlock}>
               <PrimaryPackAction
-                label="Download Voice Model"
+                label={t.sVoiceDownload ?? 'Download Voice Model'}
                 onPress={handleWhisperDownload}
                 colors={C}
                 isDark={isDark}
@@ -521,7 +521,7 @@ export default function SettingsScreen() {
               <ActionRow
                 icon="trash-outline"
                 label={t.sDeletePack}
-                description="Disables cabin translation"
+                description={t.sVoiceDeleteDesc ?? 'Disables voice input'}
                 variant="danger"
                 onPress={handleWhisperDelete}
                 isDark={isDark}

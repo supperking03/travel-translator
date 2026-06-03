@@ -14,6 +14,11 @@ let _loadingPromise: Promise<void> | null = null;
 export function useWhisper() {
   const downloadRef = useRef<ReturnType<typeof createWhisperModelDownload> | null>(null);
   const realtimeRef = useRef<{ stop: () => Promise<void> } | null>(null);
+  // Resolves when the native realtime capture has actually ended (the isCapturing:false
+  // event), not just when stop() returns. stop() only *requests* an abort, so we must wait
+  // for this before starting a new session — otherwise the next start throws "context is
+  // already capturing" / "Session deactivation failed".
+  const captureEndedRef = useRef<Promise<void> | null>(null);
 
   const {
     whisperModelStatus,
@@ -82,12 +87,40 @@ export function useWhisper() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const stopListening = useCallback(async () => {
+    const session = realtimeRef.current;
+    if (!session) return;
+    const ended = captureEndedRef.current;
+    try {
+      await session.stop();
+    } catch {
+      // stop() can throw while the audio session is mid-teardown — ignore and still wait
+      // for the capture-end event below.
+    }
+    // Wait for the native capture to actually finish before returning, so the next
+    // startListening() doesn't collide with a still-running job. Cap it so we never hang.
+    if (ended) {
+      await Promise.race([
+        ended,
+        new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+      ]);
+    }
+    realtimeRef.current = null;
+  }, []);
+
   const startListening = useCallback(async (
     language: string | undefined,
     onPartial: (text: string) => void,
     onDone: (text: string) => void,
   ) => {
     if (!_whisperContext) throw new Error('Whisper not loaded');
+
+    // Make sure any previous realtime job has fully ended first — starting a new capture
+    // while the old one is still running throws "context is already capturing".
+    await stopListening();
+
+    let resolveEnded: (() => void) | null = null;
+    captureEndedRef.current = new Promise<void>((resolve) => { resolveEnded = resolve; });
 
     const { stop, subscribe } = await _whisperContext.transcribeRealtime({
       ...(language ? { language } : {}),
@@ -107,7 +140,14 @@ export function useWhisper() {
         mode: 'Default',
         active: true,
       },
-      audioSessionOnStopIos: 'restore',
+      // On stop, switch to Playback and keep the session ACTIVE rather than deactivating it.
+      // Deactivating while the capture is still tearing down throws 560030580 ("Session
+      // deactivation failed"); Playback also leaves TTS able to play back at full volume.
+      audioSessionOnStopIos: {
+        category: 'Playback',
+        options: [],
+        mode: 'Default',
+      },
     });
 
     realtimeRef.current = { stop };
@@ -115,6 +155,8 @@ export function useWhisper() {
     subscribe(({ isCapturing, data, error }) => {
       if (error) {
         realtimeRef.current = null;
+        resolveEnded?.();
+        resolveEnded = null;
         onDone('');
         return;
       }
@@ -123,17 +165,12 @@ export function useWhisper() {
         onPartial(text);
       } else {
         realtimeRef.current = null;
+        resolveEnded?.();
+        resolveEnded = null;
         onDone(text);
       }
     });
-  }, []);
-
-  const stopListening = useCallback(async () => {
-    if (realtimeRef.current) {
-      await realtimeRef.current.stop();
-      realtimeRef.current = null;
-    }
-  }, []);
+  }, [stopListening]);
 
   return {
     downloadAndLoad,
