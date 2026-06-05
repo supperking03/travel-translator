@@ -1,13 +1,18 @@
 import 'react-native-gesture-handler';
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useDSColors, useDSIsDark } from '@/constants/designSystem';
+import { track } from '@/utils/analytics';
 
 export default function RootLayout() {
   const C      = useDSColors();
   const isDark = useDSIsDark();
+
+  // Fires once per cold start.
+  useEffect(() => { track('app_open'); }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

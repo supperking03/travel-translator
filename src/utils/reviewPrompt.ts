@@ -1,5 +1,6 @@
 import * as StoreReview from 'expo-store-review';
 import { useStore } from '@/store/useStore';
+import { track } from '@/utils/analytics';
 
 // Happy-path App Store review prompt.
 //
@@ -32,6 +33,7 @@ export async function maybeAskForReview(): Promise<void> {
     // Count the attempt regardless of whether iOS actually rendered the sheet — there's
     // no callback telling us if it showed, and retrying would only risk nagging.
     state.incrementReviewPromptCount();
+    track('review_prompted', { milestone: REVIEW_MILESTONES[promptedTimes] });
   } catch {
     // Best-effort: never let a review-prompt failure bubble into the translation flow.
   }

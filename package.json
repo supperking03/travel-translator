@@ -27,6 +27,7 @@
     "expo-store-review": "~55.0.14",
     "llama.rn": "0.11.5",
     "lodash": "^4.18.1",
+    "posthog-react-native": "^4.46.17",
     "react": "19.2.6",
     "react-native": "0.83.6",
     "react-native-gesture-handler": "^2.31.2",

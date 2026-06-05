@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   View,
@@ -22,6 +22,7 @@ import { MODEL_SIZE_MB } from '@/constants/model';
 import { WHISPER_MODEL_SIZE_MB } from '@/constants/whisperModel';
 import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem';
 import { useI18n } from '@/i18n/useI18n';
+import { track, trackScreen } from '@/utils/analytics';
 
 const UI_LANGUAGES = [
   { code: 'en', name: 'English', nativeName: 'English' },
@@ -262,6 +263,25 @@ export default function SettingsScreen() {
   const [whisperSavedSizeMB, setWhisperSavedSizeMB] = useState<number | null>(null);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
 
+  useEffect(() => { trackScreen('settings'); }, []);
+
+  // Fire "download success" only on the transition INTO ready — seed the refs with the
+  // current status so a screen open while a pack is already installed doesn't re-fire.
+  const prevModelStatus   = useRef(modelStatus);
+  const prevWhisperStatus = useRef(whisperModelStatus);
+  useEffect(() => {
+    if (modelStatus === 'ready' && prevModelStatus.current !== 'ready') {
+      track('model_download_success', { pack: 'translation' });
+    }
+    prevModelStatus.current = modelStatus;
+  }, [modelStatus]);
+  useEffect(() => {
+    if (whisperModelStatus === 'ready' && prevWhisperStatus.current !== 'ready') {
+      track('model_download_success', { pack: 'voice' });
+    }
+    prevWhisperStatus.current = whisperModelStatus;
+  }, [whisperModelStatus]);
+
   // Localize the navigation header title
   useEffect(() => {
     nav.setOptions({ title: t.sTitle });
@@ -299,7 +319,13 @@ export default function SettingsScreen() {
       `~${MODEL_SIZE_MB} MB. ${t.sDownloadPackDesc.split('·')[1]?.trim() ?? ''}`,
       [
         { text: t.aCancel, style: 'cancel' },
-        { text: t.aDownload, onPress: downloadAndLoad },
+        {
+          text: t.aDownload,
+          onPress: () => {
+            track('model_download_start', { pack: 'translation' });
+            downloadAndLoad();
+          },
+        },
       ]
     );
 

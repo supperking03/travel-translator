@@ -37,6 +37,7 @@ import { getLanguageByCode } from '@/constants/languages';
 import { useI18n } from '@/i18n/useI18n';
 import { recognizeTextBlocksFromImage, TextBlock } from '@/utils/imageTextRecognition';
 import { maybeAskForReview } from '@/utils/reviewPrompt';
+import { track, trackScreen } from '@/utils/analytics';
 import { stripWhisperNoise } from '@/constants/model';
 
 type TranslatedBlock = TextBlock & { translated: string; isPending: boolean };
@@ -532,6 +533,8 @@ export default function TranslatorScreen() {
   useEffect(() => { targetLangRef.current = targetLang; }, [targetLang]);
   useEffect(() => { isCabinModeRef.current = isCabinMode; }, [isCabinMode]);
 
+  useEffect(() => { trackScreen('translator'); }, []);
+
   // Pulse glow animation on the mic button while listening
   useEffect(() => {
     if (!isCabinMode) { cabinPulseAnim.setValue(1); return; }
@@ -642,7 +645,7 @@ export default function TranslatorScreen() {
     await startCabinSession();
   }, [isCabinMode, whisper, sourceLang, clearImagePreview, stopCabinMode, startCabinSession, resetCabinState, setSourceText, setTranslatedText, t, router]);
 
-  const runTranslate = useCallback(async (text: string) => {
+  const runTranslate = useCallback(async (text: string, mode: 'text' | 'voice' = 'text') => {
     if (!text.trim()) return;
     if (!isReady) {
       router.push('/settings?focus=download');
@@ -656,6 +659,12 @@ export default function TranslatorScreen() {
       const result = await translate(text, sourceLangRef.current, targetLangRef.current);
       setTranslatedText(result);
       addHistory({ sourceText: text, translatedText: result, sourceLang: sourceLangRef.current, targetLang: targetLangRef.current });
+      track('translate', {
+        mode,
+        sourceLang: sourceLangRef.current,
+        targetLang: targetLangRef.current,
+        chars: text.length,
+      });
       // Happy path: let the result land, then maybe ask for a review.
       setTimeout(() => { void maybeAskForReview(); }, 800);
     } catch (err) {
@@ -678,14 +687,15 @@ export default function TranslatorScreen() {
   const handleStopAndTranslate = useCallback(() => {
     const text = useStore.getState().sourceText;
     void stopCabinMode();
-    void runTranslate(text);
+    void runTranslate(text, 'voice');
   }, [stopCabinMode, runTranslate]);
 
   const handleCopy = useCallback(async () => {
     if (!translatedText) return;
     await Clipboard.setStringAsync(translatedText);
+    track('copy_translation', { targetLang });
     Alert.alert(t.mCopied, '');
-  }, [translatedText, t.mCopied]);
+  }, [translatedText, targetLang, t.mCopied]);
 
   const handleClear = useCallback(() => {
     if (isCabinModeRef.current) void stopCabinMode();
@@ -787,6 +797,7 @@ export default function TranslatorScreen() {
         targetLang,
       });
       setImagePhase('done');
+      track('translate', { mode: 'image', targetLang, blocks: rawBlocks.length });
       // Happy path: a full image was just translated — let it land, then maybe ask for a review.
       setTimeout(() => { void maybeAskForReview(); }, 800);
     } catch (err) {
@@ -922,6 +933,7 @@ export default function TranslatorScreen() {
       } catch { /* best-effort — fall through and speak anyway */ }
     }
     setIsSpeaking(true);
+    track('tts_speak', { lang: langCode });
     Speech.speak(textToSpeak, {
       language: lang.ttsLocale,
       rate: 0.9,
