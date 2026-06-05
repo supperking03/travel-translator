@@ -36,6 +36,7 @@ import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem
 import { getLanguageByCode } from '@/constants/languages';
 import { useI18n } from '@/i18n/useI18n';
 import { recognizeTextBlocksFromImage, TextBlock } from '@/utils/imageTextRecognition';
+import { maybeAskForReview } from '@/utils/reviewPrompt';
 import { stripWhisperNoise } from '@/constants/model';
 
 type TranslatedBlock = TextBlock & { translated: string; isPending: boolean };
@@ -655,6 +656,8 @@ export default function TranslatorScreen() {
       const result = await translate(text, sourceLangRef.current, targetLangRef.current);
       setTranslatedText(result);
       addHistory({ sourceText: text, translatedText: result, sourceLang: sourceLangRef.current, targetLang: targetLangRef.current });
+      // Happy path: let the result land, then maybe ask for a review.
+      setTimeout(() => { void maybeAskForReview(); }, 800);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Translation failed';
       Alert.alert('Translation Error', msg);
@@ -784,6 +787,8 @@ export default function TranslatorScreen() {
         targetLang,
       });
       setImagePhase('done');
+      // Happy path: a full image was just translated — let it land, then maybe ask for a review.
+      setTimeout(() => { void maybeAskForReview(); }, 800);
     } catch (err) {
       setImageError(err instanceof Error ? err.message : 'Image translation failed');
       setImagePhase('error');

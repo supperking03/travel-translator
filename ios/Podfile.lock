@@ -111,6 +111,8 @@ PODS:
     - ExpoModulesCore
   - ExpoSplashScreen (55.0.19):
     - ExpoModulesCore
+  - ExpoStoreReview (55.0.14):
+    - ExpoModulesCore
   - ExpoSymbols (55.0.7):
     - ExpoModulesCore
   - fast_float (8.0.0)
@@ -2941,6 +2943,7 @@ DEPENDENCIES:
   - ExpoRouter (from `../node_modules/expo-router/ios`)
   - ExpoSpeech (from `../node_modules/expo-speech/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
+  - ExpoStoreReview (from `../node_modules/expo-store-review/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
   - fast_float (from `../node_modules/react-native/third-party-podspecs/fast_float.podspec`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
@@ -3086,6 +3089,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-speech/ios"
   ExpoSplashScreen:
     :path: "../node_modules/expo-splash-screen/ios"
+  ExpoStoreReview:
+    :path: "../node_modules/expo-store-review/ios"
   ExpoSymbols:
     :path: "../node_modules/expo-symbols/ios"
   fast_float:
@@ -3278,6 +3283,7 @@ SPEC CHECKSUMS:
   ExpoRouter: e2c56f80102b153c5f8c887b38094ef936c266a2
   ExpoSpeech: 7f5d4a94aea1fbc509cf4ab2649bc2e3f05ea15e
   ExpoSplashScreen: 43517d54a0f90d381c80deda859aa6087e80884b
+  ExpoStoreReview: 067788aa30f0460a59b681b2c850747de6abe5cb
   ExpoSymbols: 8b63e859ba013df1f2fc666f535fddb3d5270569
   fast_float: b32c788ed9c6a8c584d114d0047beda9664e7cc6
   FBLazyVector: 06b1c8278e6e1b31ef68e9e14c296b7872e79e48

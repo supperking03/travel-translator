@@ -53,6 +53,12 @@ interface TranslatorState {
   addHistory: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void;
   clearHistory: () => void;
 
+  // App Store review prompt (happy-path gating)
+  successfulTranslations: number;
+  reviewPromptCount: number;
+  bumpSuccessfulTranslations: () => number;
+  incrementReviewPromptCount: () => void;
+
   // Onboarding
   onboardingComplete: boolean;
   setOnboardingComplete: (v: boolean) => void;
@@ -115,6 +121,16 @@ export const useStore = create<TranslatorState>()(
         })),
       clearHistory: () => set({ history: [] }),
 
+      successfulTranslations: 0,
+      reviewPromptCount: 0,
+      bumpSuccessfulTranslations: () => {
+        const next = get().successfulTranslations + 1;
+        set({ successfulTranslations: next });
+        return next;
+      },
+      incrementReviewPromptCount: () =>
+        set((state) => ({ reviewPromptCount: state.reviewPromptCount + 1 })),
+
       onboardingComplete: false,
       setOnboardingComplete: (v) => set({ onboardingComplete: v }),
 
@@ -134,6 +150,8 @@ export const useStore = create<TranslatorState>()(
         sourceLang:         state.sourceLang,
         targetLang:         state.targetLang,
         history:            state.history,
+        successfulTranslations: state.successfulTranslations,
+        reviewPromptCount:      state.reviewPromptCount,
       }),
     }
   )
