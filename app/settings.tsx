@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   Modal,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
@@ -42,6 +43,9 @@ const UI_LANGUAGES = [
   { code: 'id', name: 'Indonesian', nativeName: 'Bahasa Indonesia' },
   { code: 'nl', name: 'Dutch', nativeName: 'Nederlands' },
 ] as const;
+
+const SUPPORT_URL = 'https://nomad-translator.com/support.html';
+const PRIVACY_URL = 'https://nomad-translator.com/privacy-policy.html';
 
 // ─── Status card ──────────────────────────────────────────────────────────────
 function PackStatusCard({
@@ -313,6 +317,14 @@ export default function SettingsScreen() {
   const whisperIsReady       = whisperModelStatus === 'ready';
   const whisperNotDownloaded = whisperModelStatus === 'not_downloaded' || whisperModelStatus === 'error';
 
+  const openExternalLink = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Could not open link', url);
+    }
+  };
+
   const handleDownload = () =>
     Alert.alert(
       t.sDownloadPack,
@@ -577,6 +589,28 @@ export default function SettingsScreen() {
           />
         )}
 
+        <View style={styles.footerLinks}>
+          <TouchableOpacity
+            onPress={() => { void openExternalLink(SUPPORT_URL); }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={[styles.footerLinkText, { color: C.textMuted }]}>
+              {t.sSupportLinkTitle ?? 'Support'}
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={[styles.footerLinkDivider, { color: C.textMuted }]}>·</Text>
+
+          <TouchableOpacity
+            onPress={() => { void openExternalLink(PRIVACY_URL); }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={[styles.footerLinkText, { color: C.textMuted }]}>
+              {t.sPrivacyLinkTitle ?? 'Privacy Policy'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={{ height: 32 }} />
       </ScrollView>
 
@@ -736,6 +770,20 @@ const styles = StyleSheet.create({
     borderRadius: DS.radius.sm + 1,
   },
   segmentLabel: { ...DS.type.caption1, fontWeight: '600' },
+  footerLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: DS.space.sm,
+    paddingTop: DS.space.xs,
+  },
+  footerLinkText: {
+    ...DS.type.caption1,
+    fontWeight: '500',
+  },
+  footerLinkDivider: {
+    ...DS.type.caption1,
+  },
 
   overlay: { flex: 1, justifyContent: 'flex-end' },
   sheet: {

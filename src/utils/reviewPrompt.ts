@@ -1,4 +1,4 @@
-import * as StoreReview from 'expo-store-review';
+import * as StoreReview from '@/utils/storeReview';
 import { useStore } from '@/store/useStore';
 import { track } from '@/utils/analytics';
 

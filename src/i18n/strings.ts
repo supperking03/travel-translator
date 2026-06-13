@@ -71,6 +71,10 @@ export type AppStrings = {
   sAppLanguage?: string;
   sAppLanguageDesc?: string;
   sChooseAppLanguage?: string;
+  sSupportLinkTitle?: string;
+  sSupportLinkDesc?: string;
+  sPrivacyLinkTitle?: string;
+  sPrivacyLinkDesc?: string;
   // Voice (speech-to-text) pack
   sVoicePackTitle?: string;
   sVoicePackSub?: string;
@@ -162,6 +166,10 @@ const en: AppStrings = {
   sAppLanguage:     'App Language',
   sAppLanguageDesc: 'Change the language used in the app',
   sChooseAppLanguage:'Choose App Language',
+  sSupportLinkTitle:'Support',
+  sSupportLinkDesc: 'Open help, contact details, and FAQs',
+  sPrivacyLinkTitle:'Privacy Policy',
+  sPrivacyLinkDesc: 'See how your data and permissions are handled',
   sVoicePackTitle:  'Speech-to-Text Pack',
   sVoicePackSub:    'Offline voice recognition for voice input',
   sVoiceDownload:   'Download Voice Model',
@@ -251,6 +259,10 @@ const vi: AppStrings = {
   sAppLanguage:     'Ngôn ngữ ứng dụng',
   sAppLanguageDesc: 'Đổi ngôn ngữ hiển thị trong ứng dụng',
   sChooseAppLanguage:'Chọn ngôn ngữ ứng dụng',
+  sSupportLinkTitle:'Hỗ trợ',
+  sSupportLinkDesc: 'Mở trang trợ giúp, liên hệ và câu hỏi thường gặp',
+  sPrivacyLinkTitle:'Chính sách riêng tư',
+  sPrivacyLinkDesc: 'Xem cách ứng dụng xử lý dữ liệu và quyền truy cập',
   sVoicePackTitle:  'Gói nhận diện giọng nói',
   sVoicePackSub:    'Nhận diện giọng nói offline cho nhập liệu bằng giọng nói',
   sVoiceDownload:   'Tải gói giọng nói',
