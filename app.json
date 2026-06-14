@@ -23,12 +23,14 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/adaptive-icon-padded.png",
         "backgroundColor": "#0F172A"
       },
       "package": "com.theluxenomad.freeofflinetranslator",
       "permissions": [
         "INTERNET",
+        "RECORD_AUDIO",
+        "READ_MEDIA_IMAGES",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
       ]

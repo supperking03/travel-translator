@@ -16,13 +16,13 @@ import {
   ActivityIndicator,
   Image,
   LayoutChangeEvent,
+  PermissionsAndroid,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as Speech from 'expo-speech';
 import { AudioSessionIos } from 'whisper.rn';
@@ -39,15 +39,29 @@ import { recognizeTextBlocksFromImage, TextBlock } from '@/utils/imageTextRecogn
 import { maybeAskForReview } from '@/utils/reviewPrompt';
 import { track, trackScreen } from '@/utils/analytics';
 import { stripWhisperNoise } from '@/constants/model';
+import { extractTextFromFile, isSupportedTextImportFile } from '@/utils/importFileText';
 
 type TranslatedBlock = TextBlock & { translated: string; isPending: boolean };
 type ImageTranslatePhase = 'idle' | 'ocr' | 'translating' | 'done' | 'error';
 type ResultMode = 'text' | 'image';
 const OCR_TRANSLATION_BATCH_CHAR_LIMIT = 900;
 const OCR_TRANSLATION_BATCH_ITEM_LIMIT = 12;
-const SUPPORTED_TEXT_FILE_EXTENSIONS = new Set([
-  'txt', 'md', 'csv', 'json', 'xml', 'html', 'htm', 'log', 'yaml', 'yml',
-]);
+async function ensureMicrophonePermission() {
+  if (Platform.OS !== 'android') return true;
+
+  const permission = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
+  const alreadyGranted = await PermissionsAndroid.check(permission);
+  if (alreadyGranted) return true;
+
+  const result = await PermissionsAndroid.request(permission, {
+    title: 'Microphone permission',
+    message: 'Nomad Translator needs microphone access for offline voice translation.',
+    buttonNegative: 'Cancel',
+    buttonPositive: 'OK',
+  });
+
+  return result === PermissionsAndroid.RESULTS.GRANTED;
+}
 
 type TranslationBatch = {
   indexes: number[];
@@ -109,16 +123,6 @@ function splitBlocksForTranslation(blocks: TextBlock[]): TranslationBatch[] {
   }
 
   return batches;
-}
-
-function isReadableTextFile(asset: DocumentPicker.DocumentPickerAsset): boolean {
-  const mimeType = asset.mimeType?.toLowerCase() ?? '';
-  if (mimeType.startsWith('text/')) return true;
-  if (mimeType.includes('json') || mimeType.includes('xml')) return true;
-
-  const fileName = asset.name?.toLowerCase() ?? '';
-  const ext = fileName.includes('.') ? fileName.split('.').pop() ?? '' : '';
-  return SUPPORTED_TEXT_FILE_EXTENSIONS.has(ext);
 }
 
 async function translateBlockBatch(
@@ -631,6 +635,15 @@ export default function TranslatorScreen() {
       return;
     }
 
+    const hasMicPermission = await ensureMicrophonePermission();
+    if (!hasMicPermission) {
+      Alert.alert(
+        t.mVoiceErrorTitle ?? 'Voice Error',
+        'Microphone permission is required to use voice input.',
+      );
+      return;
+    }
+
     Keyboard.dismiss();
     clearImagePreview();
 
@@ -808,49 +821,71 @@ export default function TranslatorScreen() {
 
 
   const handlePickPhoto = useCallback(async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          t.mPhotoPermissionTitle ?? 'Photo access required',
+          t.mPhotoPermissionDesc ?? 'Allow photo access to choose an image for translation.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+        allowsEditing: false,
+        selectionLimit: 1,
+      });
+
+      if (result.canceled || !result.assets[0]?.uri) return;
+      await processImageTranslation(result.assets[0].uri);
+    } catch (err) {
       Alert.alert(
-        t.mPhotoPermissionTitle ?? 'Photo access required',
-        t.mPhotoPermissionDesc ?? 'Allow photo access to choose an image for translation.'
+        t.sErrorTitle ?? 'Something went wrong',
+        err instanceof Error ? err.message : 'Could not open the photo library.'
       );
-      return;
     }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 1,
-      allowsEditing: false,
-      selectionLimit: 1,
-    });
-
-    if (result.canceled || !result.assets[0]?.uri) return;
-    await processImageTranslation(result.assets[0].uri);
-  }, [processImageTranslation, t.mPhotoPermissionDesc, t.mPhotoPermissionTitle]);
+  }, [processImageTranslation, t.mPhotoPermissionDesc, t.mPhotoPermissionTitle, t.sErrorTitle]);
 
   const handleTakePhoto = useCallback(async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          t.mCameraPermissionTitle ?? 'Camera permission required',
+          t.mCameraPermissionDesc ?? 'Allow camera access to take a photo for translation.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: 1,
+        allowsEditing: false,
+      });
+
+      if (result.canceled || !result.assets[0]?.uri) return;
+      await processImageTranslation(result.assets[0].uri);
+    } catch (err) {
       Alert.alert(
-        t.mCameraPermissionTitle ?? 'Camera permission required',
-        t.mCameraPermissionDesc ?? 'Allow camera access to take a photo for translation.'
+        t.sErrorTitle ?? 'Something went wrong',
+        err instanceof Error ? err.message : 'Could not open the camera.'
       );
-      return;
     }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 1,
-      allowsEditing: false,
-    });
-
-    if (result.canceled || !result.assets[0]?.uri) return;
-    await processImageTranslation(result.assets[0].uri);
-  }, [processImageTranslation, t.mCameraPermissionDesc, t.mCameraPermissionTitle]);
+  }, [processImageTranslation, t.mCameraPermissionDesc, t.mCameraPermissionTitle, t.sErrorTitle]);
 
   const handlePickFile = useCallback(async () => {
     const result = await DocumentPicker.getDocumentAsync({
-      type: ['text/*', 'application/json', 'text/csv', 'application/xml', 'text/xml'],
+      type: [
+        'text/*',
+        'application/json',
+        'text/csv',
+        'application/xml',
+        'text/xml',
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ],
       copyToCacheDirectory: true,
       multiple: false,
     });
@@ -858,22 +893,23 @@ export default function TranslatorScreen() {
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
 
-    if (!isReadableTextFile(asset)) {
+    if (!isSupportedTextImportFile(asset.name, asset.mimeType)) {
       Alert.alert(
         t.mFileUnsupportedTitle ?? 'Unsupported file',
-        t.mFileUnsupportedDesc ?? 'Please choose a text-based file like TXT, MD, CSV, JSON, or XML.'
+        t.mFileUnsupportedDesc ?? 'Please choose TXT, MD, CSV, JSON, XML, DOCX, or a text-based PDF.'
       );
       return;
     }
 
     try {
-      const content = await FileSystem.readAsStringAsync(asset.uri);
-      const normalized = content.replace(/\r\n/g, '\n').trim();
+      const { text: normalized, warning } = await extractTextFromFile(asset.uri, asset.name ?? 'imported-file');
 
-      if (!normalized) {
+      if (!normalized || warning === 'pdf') {
         Alert.alert(
           t.mFileEmptyTitle ?? 'Empty file',
-          t.mFileEmptyDesc ?? 'This file has no readable text to translate.'
+          warning === 'pdf'
+            ? 'Could not extract text from this PDF. It may be a scanned PDF; try choosing an image page instead.'
+            : t.mFileEmptyDesc ?? 'This file has no readable text to translate.'
         );
         return;
       }
@@ -893,14 +929,30 @@ export default function TranslatorScreen() {
   }, [clearImagePreview, setSourceText, setTranslatedText, t.mFileEmptyDesc, t.mFileEmptyTitle, t.mFileReadErrorTitle, t.mFileUnsupportedDesc, t.mFileUnsupportedTitle]);
 
   const handleImageOptions = useCallback(() => {
+    const options = [
+      t.mPhotoLibrary ?? 'Photo',
+      t.mTakePhoto ?? 'Camera',
+      t.mChooseFile ?? 'File',
+      t.aCancel,
+    ];
+
+    if (Platform.OS !== 'ios') {
+      Alert.alert(
+        t.mImageOptionsTitle ?? 'Choose input',
+        undefined,
+        [
+          { text: options[0], onPress: () => void handlePickPhoto() },
+          { text: options[1], onPress: () => void handleTakePhoto() },
+          { text: options[2], onPress: () => void handlePickFile() },
+          { text: options[3], style: 'cancel' },
+        ],
+      );
+      return;
+    }
+
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        options: [
-          t.mPhotoLibrary ?? 'Photo',
-          t.mTakePhoto ?? 'Camera',
-          t.mChooseFile ?? 'File',
-          t.aCancel,
-        ],
+        options,
         cancelButtonIndex: 3,
       },
       (buttonIndex) => {

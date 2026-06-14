@@ -228,7 +228,7 @@ export default function OnboardingScreen() {
             <Ionicons name="chevron-back" size={DS.icon.md} color={C.textSecondary} />
           </TouchableOpacity>
         ) : (
-          <View style={s.backBtn} />
+          <View style={[s.backBtn, { borderColor: 'transparent' }]} />
         )}
       </View>
 

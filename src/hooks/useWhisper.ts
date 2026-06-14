@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { initWhisper, WhisperContext } from 'whisper.rn';
 import { useStore } from '@/store/useStore';
 import {
@@ -10,6 +11,11 @@ import { getWhisperModelPath } from '@/constants/whisperModel';
 
 let _whisperContext: WhisperContext | null = null;
 let _loadingPromise: Promise<void> | null = null;
+let _needsContextRefresh = false;
+
+function isMissingNativeContextError(err: unknown) {
+  return err instanceof Error && /context not found/i.test(err.message);
+}
 
 export function useWhisper() {
   const downloadRef = useRef<ReturnType<typeof createWhisperModelDownload> | null>(null);
@@ -108,51 +114,107 @@ export function useWhisper() {
     realtimeRef.current = null;
   }, []);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        // Android/Kobiton can recreate the native module after backgrounding while JS
+        // still holds the old WhisperContext id. Force the next start to re-init.
+        _needsContextRefresh = true;
+        realtimeRef.current = null;
+        captureEndedRef.current = null;
+      }
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  const ensureContext = useCallback(async () => {
+    if (_needsContextRefresh) {
+      _whisperContext = null;
+      _needsContextRefresh = false;
+    }
+
+    if (!_whisperContext) {
+      await loadModel();
+    }
+
+    if (!_whisperContext) {
+      throw new Error('Whisper not loaded');
+    }
+
+    return _whisperContext;
+  }, [loadModel]);
+
   const startListening = useCallback(async (
     language: string | undefined,
     onPartial: (text: string) => void,
     onDone: (text: string) => void,
   ) => {
-    if (!_whisperContext) throw new Error('Whisper not loaded');
-
     // Make sure any previous realtime job has fully ended first — starting a new capture
     // while the old one is still running throws "context is already capturing".
     await stopListening();
 
+    let realtime: Awaited<ReturnType<WhisperContext['transcribeRealtime']>> | null = null;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const context = await ensureContext();
+        realtime = await context.transcribeRealtime({
+          ...(language ? { language } : {}),
+          // maxLen: 0 = no per-segment char cap; emit the full chunk as one segment.
+          // Previous value of 1 was forcing per-character segmentation and slowing partials.
+          maxLen: 0,
+          tokenTimestamps: false,
+          // Session length matches whisper.cpp's 30s sweet spot — auto-restart handles longer use.
+          realtimeAudioSec: 30,
+          // Process audio in 5s slices so partials show up snappier instead of waiting on a long window.
+          realtimeAudioSliceSec: 5,
+          // Fire the first transcription after 0.5s of audio (default is 1s) for a faster first word.
+          realtimeAudioMinSec: 0.5,
+          audioSessionOnStartIos: {
+            category: 'PlayAndRecord',
+            options: ['DefaultToSpeaker', 'AllowBluetooth'],
+            mode: 'Default',
+            active: true,
+          },
+          // On stop, switch to Playback and keep the session ACTIVE rather than deactivating it.
+          // Deactivating while the capture is still tearing down throws 560030580 ("Session
+          // deactivation failed"); Playback also leaves TTS able to play back at full volume.
+          audioSessionOnStopIos: {
+            category: 'Playback',
+            options: [],
+            mode: 'Default',
+          },
+        });
+        break;
+      } catch (err) {
+        if (attempt === 0 && isMissingNativeContextError(err)) {
+          _whisperContext = null;
+          _needsContextRefresh = false;
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    if (!realtime) {
+      throw new Error('Whisper not loaded');
+    }
+
+    realtimeRef.current = { stop: realtime.stop };
+
     let resolveEnded: (() => void) | null = null;
     captureEndedRef.current = new Promise<void>((resolve) => { resolveEnded = resolve; });
 
-    const { stop, subscribe } = await _whisperContext.transcribeRealtime({
-      ...(language ? { language } : {}),
-      // maxLen: 0 = no per-segment char cap; emit the full chunk as one segment.
-      // Previous value of 1 was forcing per-character segmentation and slowing partials.
-      maxLen: 0,
-      tokenTimestamps: false,
-      // Session length matches whisper.cpp's 30s sweet spot — auto-restart handles longer use.
-      realtimeAudioSec: 30,
-      // Process audio in 5s slices so partials show up snappier instead of waiting on a long window.
-      realtimeAudioSliceSec: 5,
-      // Fire the first transcription after 0.5s of audio (default is 1s) for a faster first word.
-      realtimeAudioMinSec: 0.5,
-      audioSessionOnStartIos: {
-        category: 'PlayAndRecord',
-        options: ['DefaultToSpeaker', 'AllowBluetooth'],
-        mode: 'Default',
-        active: true,
-      },
-      // On stop, switch to Playback and keep the session ACTIVE rather than deactivating it.
-      // Deactivating while the capture is still tearing down throws 560030580 ("Session
-      // deactivation failed"); Playback also leaves TTS able to play back at full volume.
-      audioSessionOnStopIos: {
-        category: 'Playback',
-        options: [],
-        mode: 'Default',
-      },
-    });
-
-    realtimeRef.current = { stop };
-
-    subscribe(({ isCapturing, data, error }) => {
+    realtime.subscribe(({
+      isCapturing,
+      data,
+      error,
+    }: {
+      isCapturing?: boolean;
+      data?: { result?: string };
+      error?: unknown;
+    }) => {
       if (error) {
         realtimeRef.current = null;
         resolveEnded?.();
@@ -170,7 +232,7 @@ export function useWhisper() {
         onDone(text);
       }
     });
-  }, [stopListening]);
+  }, [ensureContext, stopListening]);
 
   return {
     downloadAndLoad,

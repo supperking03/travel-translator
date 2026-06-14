@@ -29,6 +29,7 @@ export type AppStrings = {
   mPhotoLibrary?: string;
   mTakePhoto?: string;
   mChooseFile?: string;
+  mImageOptionsTitle?: string;
   mReadingText?: string;
   mNoTextFound?: string;
   mViewImage?: string;
