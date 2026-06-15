@@ -11,3 +11,7 @@ build/
 
 # OS junk
 .DS_Store
+# Android signing — NEVER commit
+*.keystore
+!android/app/debug.keystore
+*.jks
