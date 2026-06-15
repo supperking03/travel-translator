@@ -822,15 +822,7 @@ export default function TranslatorScreen() {
 
   const handlePickPhoto = useCallback(async () => {
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          t.mPhotoPermissionTitle ?? 'Photo access required',
-          t.mPhotoPermissionDesc ?? 'Allow photo access to choose an image for translation.'
-        );
-        return;
-      }
-
+      // Uses the system photo picker — no READ_MEDIA_IMAGES permission required.
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         quality: 1,
