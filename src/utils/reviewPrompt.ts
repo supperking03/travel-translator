@@ -8,7 +8,7 @@ import { track } from '@/utils/analytics';
 // and only at a handful of usage milestones, we surface an in-app review modal
 // (see app/review.tsx). 5 stars → the native store sheet; 1–4 stars →
 // private feedback POSTed to our backend. We stop nagging once they've submitted once.
-const REVIEW_MILESTONES = [2, 10, 20];
+const REVIEW_MILESTONES = [5, 10, 20];
 
 /**
  * Records one successful translation and, if the user just crossed the next usage
