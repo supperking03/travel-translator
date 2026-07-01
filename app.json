@@ -23,7 +23,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.theluxenomad.freeofflinetranslator",
-      "buildNumber": "11",
+      "buildNumber": "12",
       "appStoreUrl": "https://apps.apple.com/app/id6766855589?action=write-review",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Used for voice input translation",
