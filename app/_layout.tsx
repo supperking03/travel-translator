@@ -34,8 +34,9 @@ export default function RootLayout() {
           <Stack.Screen
             name="settings"
             options={{
-              title: 'Offline Language Pack',
+              title: 'Settings',
               presentation: 'modal',
+              headerShown: false,
               headerStyle: { backgroundColor: C.background },
             }}
           />

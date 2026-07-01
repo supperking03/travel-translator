@@ -1,52 +1,58 @@
 import Constants from 'expo-constants';
-import { Platform as ExpoPlatform, requireNativeModule } from 'expo-modules-core';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
-type StoreReviewModule = {
-  isAvailableAsync?: () => Promise<boolean>;
-  requestReview?: () => Promise<void>;
-};
-
-let nativeModule: StoreReviewModule | null = null;
-
-function getNativeModule(): StoreReviewModule | null {
-  if (nativeModule) return nativeModule;
-
-  try {
-    nativeModule = requireNativeModule<StoreReviewModule>('ExpoStoreReview');
-    return nativeModule;
-  } catch {
-    return null;
-  }
-}
+const IOS_APP_ID = '6766855589';
+const ANDROID_PACKAGE = 'com.theluxenomad.freeofflinetranslator';
 
 export async function isAvailableAsync(): Promise<boolean> {
-  return (await getNativeModule()?.isAvailableAsync?.()) ?? false;
+  return Platform.OS === 'ios' || Platform.OS === 'android';
 }
 
-function storeUrl(): string | null {
+function configuredStoreUrl(): string | null {
   const expoConfig = Constants.expoConfig;
-  if (ExpoPlatform.OS === 'ios' && expoConfig?.ios) {
+  if (Platform.OS === 'ios' && expoConfig?.ios) {
     return expoConfig.ios.appStoreUrl ?? null;
   }
-  if (ExpoPlatform.OS === 'android' && expoConfig?.android) {
+  if (Platform.OS === 'android' && expoConfig?.android) {
     return expoConfig.android.playStoreUrl ?? null;
   }
   return null;
 }
 
-export async function requestReview(): Promise<void> {
-  const module = getNativeModule();
-  if (module?.requestReview) {
-    await module.requestReview();
-    return;
+function storeUrls(): string[] {
+  const configured = configuredStoreUrl();
+
+  if (Platform.OS === 'ios') {
+    return [
+      `itms-apps://itunes.apple.com/app/id${IOS_APP_ID}?action=write-review`,
+      configured,
+      `https://apps.apple.com/app/id${IOS_APP_ID}?action=write-review`,
+    ].filter(Boolean) as string[];
   }
 
-  const url = storeUrl();
-  if (!url) return;
-
-  if (await Linking.canOpenURL(url)) {
-    await Linking.openURL(url);
+  if (Platform.OS === 'android') {
+    const packageName = Constants.expoConfig?.android?.package ?? ANDROID_PACKAGE;
+    return [
+      `market://details?id=${packageName}`,
+      configured,
+      `https://play.google.com/store/apps/details?id=${packageName}`,
+    ].filter(Boolean) as string[];
   }
+
+  return configured ? [configured] : [];
 }
 
+export async function requestReview(): Promise<void> {
+  let lastError: unknown;
+
+  for (const url of storeUrls()) {
+    try {
+      await Linking.openURL(url);
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? new Error('No store review URL configured.');
+}

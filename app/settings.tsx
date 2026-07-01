@@ -3,14 +3,15 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   ScrollView,
   Alert,
   Modal,
   Linking,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from 'expo-router';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useStore } from '@/store/useStore';
@@ -125,12 +126,23 @@ function ThemePickerRow({
   );
 }
 
+function HeaderCloseIcon({ color }: { color: string }) {
+  return (
+    <View style={styles.headerCloseGlyph}>
+      <View style={[styles.headerCloseLine, { backgroundColor: color, transform: [{ rotate: '45deg' }] }]} />
+      <View style={[styles.headerCloseLine, { backgroundColor: color, transform: [{ rotate: '-45deg' }] }]} />
+    </View>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
   const C      = useDSColors();
   const isDark = useDSIsDark();
   const t      = useI18n();
   const nav    = useNavigation();
+  const router = useRouter();
+  const insets  = useSafeAreaInsets();
 
   const {
     appLanguage, setAppLanguage,
@@ -143,8 +155,11 @@ export default function SettingsScreen() {
 
   // Localize the navigation header title
   useEffect(() => {
-    nav.setOptions({ title: t.sTitle });
-  }, [t.sTitle, nav]);
+    nav.setOptions({
+      title: t.sTitle,
+      headerShown: false,
+    });
+  }, [nav, t.sTitle]);
 
   const currentUiLanguage = UI_LANGUAGES.find((lang) => lang.code === appLanguage) ?? UI_LANGUAGES[0];
 
@@ -157,7 +172,18 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: C.background }]} edges={['bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: C.background }]} edges={['top', 'bottom']}>
+      <View style={styles.header}>
+        <Text style={[styles.headerTitle, { color: C.textPrimary }]}>{t.sTitle}</Text>
+        <Pressable
+          onPress={() => router.back()}
+          style={[styles.headerCloseCircle, { backgroundColor: C.surfaceElevated }]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <HeaderCloseIcon color={C.textSecondary} />
+        </Pressable>
+      </View>
+
       <ScrollView
         style={styles.flex}
         contentContainerStyle={styles.scroll}
@@ -211,7 +237,7 @@ export default function SettingsScreen() {
 
       <Modal visible={languageModalVisible} animationType="slide" transparent statusBarTranslucent>
         <View style={[styles.overlay, { backgroundColor: C.overlay }]}>
-          <View style={[styles.sheet, { backgroundColor: C.background }]}>
+          <View style={[styles.sheet, { backgroundColor: C.background, paddingBottom: Math.max(insets.bottom, 16) }]}>
             <View style={[styles.handle, { backgroundColor: C.borderStrong }]} />
 
             <View style={[styles.sheetHeader, { borderBottomColor: C.border }]}>
@@ -227,7 +253,11 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.languageList}
+              contentContainerStyle={styles.languageListContent}
+              showsVerticalScrollIndicator={false}
+            >
               {UI_LANGUAGES.map((language) => {
                 const isSelected = language.code === appLanguage;
                 return (
@@ -265,6 +295,16 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   safe:  { flex: 1 },
   flex:  { flex: 1 },
+  header: {
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: DS.space.md,
+  },
+  headerTitle: {
+    ...DS.type.headline,
+    fontWeight: '700',
+  },
   scroll: { paddingHorizontal: DS.space.md, paddingTop: DS.space.md, gap: DS.space.md },
 
   card: {
@@ -380,13 +420,34 @@ const styles = StyleSheet.create({
   footerLinkDivider: {
     ...DS.type.caption1,
   },
+  headerCloseCircle: {
+    position: 'absolute',
+    right: DS.space.md,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  headerCloseGlyph: {
+    width: 14,
+    height: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCloseLine: {
+    position: 'absolute',
+    width: 14,
+    height: 1.8,
+    borderRadius: 1,
+  },
 
   overlay: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     borderTopLeftRadius: DS.radius.xxl,
     borderTopRightRadius: DS.radius.xxl,
-    maxHeight: '70%',
-    paddingBottom: 24,
+    maxHeight: '86%',
   },
   handle: {
     width: 40,
@@ -412,6 +473,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  languageList: { flexShrink: 1 },
+  languageListContent: { paddingBottom: DS.space.sm },
   languageRow: {
     flexDirection: 'row',
     alignItems: 'center',
