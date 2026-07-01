@@ -5,9 +5,18 @@
 expo-env.d.ts
 # @end expo-cli
 
+# Dependencies — never commit (restored via `npm install`)
+node_modules/
+
 # Build artifacts (xcarchive + dSYM blow past GitHub's 100MB file limit)
 build/
 .expo/
+ios/Pods/
+ios/build/
+android/build/
+android/app/build/
+android/.gradle/
+*.log
 
 # OS junk
 .DS_Store
