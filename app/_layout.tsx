@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useDSColors, useDSIsDark } from '@/constants/designSystem';
 import { track } from '@/utils/analytics';
+import { useOtaUpdates } from '@/hooks/useOtaUpdates';
 
 export default function RootLayout() {
   const C      = useDSColors();
@@ -13,6 +14,9 @@ export default function RootLayout() {
 
   // Fires once per cold start.
   useEffect(() => { track('app_open'); }, []);
+
+  // Check EAS Update for a newer JS bundle on launch (silent, prod-only).
+  useOtaUpdates();
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

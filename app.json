@@ -2,7 +2,16 @@
   "expo": {
     "name": "Nomad Translator",
     "slug": "travel-translator",
-    "version": "1.4.2",
+    "version": "1.5.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/f37ecf15-6d9a-4a62-a746-5115315b6832"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -14,6 +23,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.theluxenomad.freeofflinetranslator",
+      "buildNumber": "11",
       "appStoreUrl": "https://apps.apple.com/app/id6766855589?action=write-review",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Used for voice input translation",
@@ -30,10 +40,15 @@
       },
       "package": "com.theluxenomad.freeofflinetranslator",
       "permissions": [
-        "INTERNET",
-        "RECORD_AUDIO"
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET",
+        "android.permission.RECORD_AUDIO"
       ],
       "blockedPermissions": [
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
         "READ_MEDIA_IMAGES",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
@@ -67,6 +82,13 @@
     "scheme": "travel-translator",
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f37ecf15-6d9a-4a62-a746-5115315b6832"
+      }
+    },
+    "owner": "supperking03"
   }
 }
