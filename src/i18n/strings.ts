@@ -154,7 +154,7 @@ const en: AppStrings = {
   obFeat3Title:     '60 languages',
   obFeat3Desc:      'From Arabic to Vietnamese, AI-powered and accurate.',
   obStart:          'Start Translating',
-  mSubtitle:        'Translate anywhere · No Need Internet',
+  mSubtitle:        'Translate anywhere · No internet needed',
   mPlaceholder:     'Enter text to translate…',
   mTranslate:       'Translate',
   mTranslating:     'Translating…',

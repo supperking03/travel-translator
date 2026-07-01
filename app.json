@@ -3,9 +3,7 @@
     "name": "Nomad Translator",
     "slug": "travel-translator",
     "version": "1.5.0",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.5.0",
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
