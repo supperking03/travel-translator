@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,12 @@ import {
   StyleSheet,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LANGUAGES, Language, getLanguageByCode } from '@/constants/languages';
 import { isMlkitSupported } from '@/constants/mlkitLanguages';
+import { getDownloadedPackTags, codeToTag, downloadLanguagePack } from '@/utils/mlkitPacks';
 import { DS, useDSColors, useDSIsDark } from '@/constants/designSystem';
 import { useI18n } from '@/i18n/useI18n';
 import { track } from '@/utils/analytics';
@@ -30,7 +32,45 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
   const t      = useI18n();
   const [visible, setVisible] = useState(false);
   const [search, setSearch] = useState('');
+  const [downloadedTags, setDownloadedTags] = useState<string[]>([]);
+  const [downloadingCode, setDownloadingCode] = useState<string | null>(null);
   const isIOS = Platform.OS === 'ios';
+
+  // Load which language packs are already on device each time the picker opens.
+  useEffect(() => {
+    if (visible) getDownloadedPackTags().then(setDownloadedTags);
+  }, [visible]);
+
+  const isDownloaded = useCallback(
+    (code: string) => {
+      const tag = codeToTag(code);
+      return !!tag && downloadedTags.includes(tag);
+    },
+    [downloadedTags],
+  );
+
+  const handleDownload = useCallback(
+    async (code: string): Promise<boolean> => {
+      if (downloadingCode) return false;
+      setDownloadingCode(code);
+      track('mlkit_pack_manual_download', { code });
+      try {
+        const ok = await downloadLanguagePack(code);
+        if (!ok) throw new Error('download failed');
+        setDownloadedTags(await getDownloadedPackTags());
+        return true;
+      } catch {
+        Alert.alert(
+          t.mOfflineTitle ?? 'No Internet',
+          t.rvError ?? 'Please connect to the internet and try again.',
+        );
+        return false;
+      } finally {
+        setDownloadingCode(null);
+      }
+    },
+    [downloadingCode, t],
+  );
 
   const selected = getLanguageByCode(selectedCode);
   const filtered = LANGUAGES.filter(
@@ -40,7 +80,7 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
       l.code.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleSelect = (lang: Language) => {
+  const handleSelect = async (lang: Language) => {
     if (!isMlkitSupported(lang.code)) {
       track('language_unsupported_selected', { code: lang.code });
       Alert.alert(
@@ -48,6 +88,12 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
         (t.mLangUnsupportedBody ?? "{lang} isn't available for offline translation yet.").replace('{lang}', lang.name),
       );
       return;
+    }
+    // Pack not on device yet → download it first, then commit the selection. If the
+    // download fails (offline), stay in the picker (an alert already explained why).
+    if (!isDownloaded(lang.code)) {
+      const ok = await handleDownload(lang.code);
+      if (!ok) return;
     }
     onSelect(lang.code);
     setVisible(false);
@@ -153,6 +199,7 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
               keyExtractor={(item) => item.code}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              extraData={`${downloadedTags.join(',')}|${downloadingCode ?? ''}|${selectedCode}`}
               renderItem={({ item }) => {
                 const isSelected = item.code === selectedCode;
                 const supported  = isMlkitSupported(item.code);
@@ -182,9 +229,21 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
                       <View style={[styles.soonBadge, { borderColor: C.border, backgroundColor: C.surface }]}>
                         <Text style={[styles.soonText, { color: C.textMuted }]}>{t.mSoon ?? 'Soon'}</Text>
                       </View>
-                    ) : isSelected ? (
-                      <Ionicons name="checkmark-circle" size={20} color={C.primary} />
-                    ) : null}
+                    ) : downloadingCode === item.code ? (
+                      <ActivityIndicator size="small" color={C.primary} style={styles.rowStatus} />
+                    ) : isDownloaded(item.code) ? null : (
+                      <TouchableOpacity
+                        onPress={() => handleDownload(item.code)}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        style={styles.rowStatus}
+                        activeOpacity={0.6}
+                      >
+                        <Ionicons name="cloud-download-outline" size={22} color={C.primary} />
+                      </TouchableOpacity>
+                    )}
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={18} color={C.primary} style={styles.selectedTick} />
+                    )}
                   </TouchableOpacity>
                 );
               }}
@@ -301,4 +360,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   soonText: { ...DS.type.caption2, fontWeight: '700', textTransform: 'uppercase' },
+  rowStatus: { width: 34, alignItems: 'center', justifyContent: 'center' },
+  selectedTick: { marginLeft: -DS.space.xs },
 });

@@ -1,8 +1,23 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
-import { initWhisper, WhisperContext } from 'whisper.rn';
 import { useStore } from '@/store/useStore';
-import { getBundledWhisperPath } from '@/utils/bundledWhisper';
+
+type RealtimeSession = {
+  stop: () => Promise<void>;
+  subscribe: (listener: (event: {
+    isCapturing?: boolean;
+    data?: { result?: string };
+    error?: unknown;
+  }) => void) => void;
+};
+
+type WhisperContext = {
+  transcribeRealtime: (options: Record<string, unknown>) => Promise<RealtimeSession>;
+};
+
+type WhisperModule = {
+  initWhisper: (options: { filePath: string }) => Promise<WhisperContext>;
+};
 
 let _whisperContext: WhisperContext | null = null;
 let _loadingPromise: Promise<void> | null = null;
@@ -12,7 +27,7 @@ function isMissingNativeContextError(err: unknown) {
   return err instanceof Error && /context not found/i.test(err.message);
 }
 
-export function useWhisper() {
+export function useWhisper(autoLoad = true) {
   const realtimeRef = useRef<{ stop: () => Promise<void> } | null>(null);
   // Resolves when the native realtime capture has actually ended (the isCapturing:false
   // event), not just when stop() returns. stop() only *requests* an abort, so we must wait
@@ -35,6 +50,8 @@ export function useWhisper() {
       try {
         setWhisperModelStatus('loading');
         setWhisperModelError(null);
+        const { getBundledWhisperPath } = require('@/utils/bundledWhisper') as typeof import('@/utils/bundledWhisper');
+        const { initWhisper } = require('whisper.rn') as WhisperModule;
         const filePath = await getBundledWhisperPath();
         _whisperContext = await initWhisper({ filePath });
         setWhisperModelStatus('ready');
@@ -50,10 +67,10 @@ export function useWhisper() {
   }, [setWhisperModelStatus, setWhisperModelError]);
 
   useEffect(() => {
-    if (!_whisperContext && !_loadingPromise) {
+    if (autoLoad && !_whisperContext && !_loadingPromise) {
       loadModel();
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autoLoad, loadModel]);
 
   const stopListening = useCallback(async () => {
     const session = realtimeRef.current;
@@ -116,7 +133,7 @@ export function useWhisper() {
     // while the old one is still running throws "context is already capturing".
     await stopListening();
 
-    let realtime: Awaited<ReturnType<WhisperContext['transcribeRealtime']>> | null = null;
+    let realtime: RealtimeSession | null = null;
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {

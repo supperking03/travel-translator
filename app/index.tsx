@@ -25,7 +25,6 @@ import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Speech from 'expo-speech';
-import { AudioSessionIos } from 'whisper.rn';
 import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-view';
 
 import { useStore } from '@/store/useStore';
@@ -536,11 +535,14 @@ export default function TranslatorScreen() {
   const swapAnim  = useRef(new Animated.Value(0)).current;
 
   const { translate, isReady } = useTranslator();
-  const whisper = useWhisper();
-
   const [isCabinMode, setIsCabinMode] = useState(false);
+  const [isPreparingVoice, setIsPreparingVoice] = useState(false);
+  const [isStoppingCabinForTranslate, setIsStoppingCabinForTranslate] = useState(false);
   const cabinPulseAnim  = useRef(new Animated.Value(1)).current;
   const isCabinModeRef  = useRef(false);
+  const isStoppingCabinForTranslateRef = useRef(false);
+  const voicePrepareTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const voicePrepareTokenRef = useRef(0);
 
   // Cabin mode is pure speech-to-text now: Whisper transcribes into the input box and the
   // user presses "Stop & Translate". This ref holds the running transcript across the 30s
@@ -555,6 +557,24 @@ export default function TranslatorScreen() {
   useEffect(() => { isCabinModeRef.current = isCabinMode; }, [isCabinMode]);
 
   useEffect(() => { trackScreen('translator'); }, []);
+
+  const whisper = useWhisper(false);
+
+  const cancelVoicePrepare = useCallback(() => {
+    voicePrepareTokenRef.current += 1;
+    if (voicePrepareTimeoutRef.current) {
+      clearTimeout(voicePrepareTimeoutRef.current);
+      voicePrepareTimeoutRef.current = null;
+    }
+    setIsPreparingVoice(false);
+  }, []);
+
+  useEffect(() => () => {
+    if (voicePrepareTimeoutRef.current) {
+      clearTimeout(voicePrepareTimeoutRef.current);
+    }
+    voicePrepareTokenRef.current += 1;
+  }, []);
 
   // Pulse glow animation on the mic button while listening
   useEffect(() => {
@@ -572,6 +592,10 @@ export default function TranslatorScreen() {
   // Reset the running transcript so the next cabin session starts clean.
   const resetCabinState = useCallback(() => {
     cabinTranscriptRef.current = '';
+  }, []);
+
+  const setCabinTranscriptText = useCallback((text: string) => {
+    useStore.setState({ sourceText: text });
   }, []);
 
   const stopCabinMode = useCallback(async () => {
@@ -603,13 +627,14 @@ export default function TranslatorScreen() {
       await whisper.startListening(
         cabinLangCodeRef.current,
         (partial) => {
+          if (isStoppingCabinForTranslateRef.current) return;
           const clean = stripWhisperNoise(partial);
           // Skip empty partials — they'd blank out what the user already dictated.
           if (!clean) return;
           // Append to the committed transcript from prior sessions so the input keeps the
           // full text across the 30s session restarts.
           const base = cabinTranscriptRef.current;
-          setSourceText(base ? `${base} ${clean}` : clean);
+          setCabinTranscriptText(base ? `${base} ${clean}` : clean);
         },
         (final) => {
           const clean = stripWhisperNoise(final).trim();
@@ -618,10 +643,10 @@ export default function TranslatorScreen() {
             cabinTranscriptRef.current = cabinTranscriptRef.current
               ? `${cabinTranscriptRef.current} ${clean}`
               : clean;
-            setSourceText(cabinTranscriptRef.current);
+            setCabinTranscriptText(cabinTranscriptRef.current);
           }
           // Auto-restart while cabin mode is still on (covers utterances longer than one session).
-          if (isCabinModeRef.current) {
+          if (isCabinModeRef.current && !isStoppingCabinForTranslateRef.current) {
             void startCabinSessionRef.current?.();
           } else {
             setIsCabinMode(false);
@@ -633,24 +658,11 @@ export default function TranslatorScreen() {
       setIsCabinMode(false);
       Alert.alert(t.mVoiceErrorTitle ?? 'Voice Error', err instanceof Error ? err.message : (t.mVoiceErrorDesc ?? 'Couldn’t start voice input.'));
     }
-  }, [whisper, setSourceText, t]);
+  }, [whisper, setCabinTranscriptText, t]);
 
   useEffect(() => { startCabinSessionRef.current = startCabinSession; }, [startCabinSession]);
 
-  const handleCabinToggle = useCallback(async () => {
-    if (isCabinMode) { await stopCabinMode(); return; }
-
-    if (!whisper.isReady) {
-      // The voice model ships bundled in the app; if it's still initialising at tap time,
-      // nudge the load and ask the user to retry in a moment. No download step exists.
-      whisper.loadModel();
-      Alert.alert(
-        t.mVoiceNotReadyTitle ?? 'Voice model loading',
-        t.mLoadingSub ?? 'This may take a moment',
-      );
-      return;
-    }
-
+  const startCabinMode = useCallback(async () => {
     const hasMicPermission = await ensureMicrophonePermission();
     if (!hasMicPermission) {
       Alert.alert(
@@ -667,12 +679,45 @@ export default function TranslatorScreen() {
     resetCabinState();
     setSourceText('');
     setTranslatedText('');
+    isStoppingCabinForTranslateRef.current = false;
     isCabinModeRef.current = true;
     setIsCabinMode(true);
 
     cabinLangCodeRef.current = sourceLang === 'auto' ? undefined : sourceLang;
     await startCabinSession();
-  }, [isCabinMode, whisper, sourceLang, clearImagePreview, stopCabinMode, startCabinSession, resetCabinState, setSourceText, setTranslatedText, t, router]);
+  }, [sourceLang, clearImagePreview, startCabinSession, resetCabinState, setSourceText, setTranslatedText, t]);
+
+  const handleCabinToggle = useCallback(async () => {
+    if (isPreparingVoice) return;
+    if (isCabinMode) { await stopCabinMode(); return; }
+
+    if (!whisper.isReady) {
+      const token = voicePrepareTokenRef.current + 1;
+      voicePrepareTokenRef.current = token;
+      setIsPreparingVoice(true);
+      voicePrepareTimeoutRef.current = setTimeout(() => {
+        voicePrepareTimeoutRef.current = null;
+        void (async () => {
+          try {
+            await whisper.loadModel();
+            if (voicePrepareTokenRef.current !== token) return;
+            await startCabinMode();
+          } catch (err) {
+            if (voicePrepareTokenRef.current === token) {
+              Alert.alert(t.mVoiceErrorTitle ?? 'Voice Error', err instanceof Error ? err.message : (t.mVoiceErrorDesc ?? 'Couldn’t start voice input.'));
+            }
+          } finally {
+            if (voicePrepareTokenRef.current === token) {
+              setIsPreparingVoice(false);
+            }
+          }
+        })();
+      }, 650);
+      return;
+    }
+
+    await startCabinMode();
+  }, [isPreparingVoice, isCabinMode, whisper, stopCabinMode, startCabinMode, t]);
 
   const runTranslate = useCallback(async (text: string, mode: 'text' | 'voice' = 'text') => {
     if (!text.trim()) return;
@@ -712,19 +757,28 @@ export default function TranslatorScreen() {
     setResultMode('text');
   }, [isReady, translate, setIsTranslating, setTranslatedText, addHistory, router, clearImagePreview, t]);
 
-  const handleTranslate = useCallback(() => {
-    void runTranslate(sourceText);
-  }, [runTranslate, sourceText]);
+  const isImageProcessing = imagePhase === 'ocr' || imagePhase === 'translating';
 
-  // Cabin mode button: translate whatever has been dictated into the input right away, and
-  // tear the mic down in the background. Awaiting the whisper capture-end before translating
-  // added a visible delay (button flashed "Translate" before "Translating…"), so we don't
-  // block on it — the input already holds the latest transcript.
-  const handleStopAndTranslate = useCallback(() => {
-    const text = useStore.getState().sourceText;
-    void stopCabinMode();
-    void runTranslate(text, 'voice');
-  }, [stopCabinMode, runTranslate]);
+  // Cabin mode button: stop the active Whisper capture first so its final callback cannot
+  // race the translated result, then translate the latest transcript.
+  const handleStopAndTranslate = useCallback(async () => {
+    if (isTranslating || isStoppingCabinForTranslateRef.current) return;
+
+    isStoppingCabinForTranslateRef.current = true;
+    setIsStoppingCabinForTranslate(true);
+    const textBeforeStop = useStore.getState().sourceText;
+
+    try {
+      await stopCabinMode();
+
+      const textAfterStop = useStore.getState().sourceText;
+      const textToTranslate = textAfterStop.trim() ? textAfterStop : textBeforeStop;
+      await runTranslate(textToTranslate, 'voice');
+    } finally {
+      isStoppingCabinForTranslateRef.current = false;
+      setIsStoppingCabinForTranslate(false);
+    }
+  }, [isTranslating, stopCabinMode, runTranslate]);
 
   const handleCopy = useCallback(async () => {
     if (!translatedText) return;
@@ -859,6 +913,16 @@ export default function TranslatorScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceLang, targetLang]);
 
+  const handleTranslate = useCallback(() => {
+    if (imagePreviewUri) {
+      if (isImageProcessing) return;
+      void processImageTranslation(imagePreviewUri);
+      return;
+    }
+
+    void runTranslate(sourceText);
+  }, [imagePreviewUri, isImageProcessing, processImageTranslation, runTranslate, sourceText]);
+
 
   const handlePickPhoto = useCallback(async () => {
     try {
@@ -961,6 +1025,8 @@ export default function TranslatorScreen() {
   }, [clearImagePreview, setSourceText, setTranslatedText, t.mFileEmptyDesc, t.mFileEmptyTitle, t.mFileReadErrorTitle, t.mFileUnsupportedDesc, t.mFileUnsupportedTitle]);
 
   const handleImageOptions = useCallback(() => {
+    cancelVoicePrepare();
+
     const options = [
       t.mPhotoLibrary ?? 'Photo',
       t.mTakePhoto ?? 'Camera',
@@ -997,7 +1063,7 @@ export default function TranslatorScreen() {
         }
       }
     );
-  }, [handlePickFile, handlePickPhoto, handleTakePhoto, t.aCancel, t.mChooseFile, t.mPhotoLibrary, t.mTakePhoto]);
+  }, [cancelVoicePrepare, handlePickFile, handlePickPhoto, handleTakePhoto, t.aCancel, t.mChooseFile, t.mPhotoLibrary, t.mTakePhoto]);
 
   const speakText = useCallback(async (textToSpeak: string, langCode: string) => {
     const lang = getLanguageByCode(langCode);
@@ -1019,6 +1085,13 @@ export default function TranslatorScreen() {
     // Force it back to Playback so speech comes out the main speaker at full media volume.
     if (Platform.OS === 'ios') {
       try {
+        const { AudioSessionIos } = require('whisper.rn') as {
+          AudioSessionIos: {
+            Category: { Playback: string };
+            setCategory: (category: string, options: string[]) => Promise<void>;
+            setActive: (active: boolean) => Promise<void>;
+          };
+        };
         await AudioSessionIos.setCategory(AudioSessionIos.Category.Playback, []);
         await AudioSessionIos.setActive(true);
       } catch { /* best-effort — fall through and speak anyway */ }
@@ -1059,7 +1132,6 @@ export default function TranslatorScreen() {
   }, [swapLanguages, swapAnim, sourceLang, targetLang, setSourceLang, setTargetLang]);
 
   const charNearLimit = sourceText.length > 9000;
-  const isImageProcessing = imagePhase === 'ocr' || imagePhase === 'translating';
   const shouldShowResult = translatedText !== '' || isTranslating || imagePhase !== 'idle';
   const shouldLockPageScroll = isPreviewTouchActive && resultMode === 'image' && !!imagePreviewUri && !isImageProcessing;
 
@@ -1117,6 +1189,13 @@ export default function TranslatorScreen() {
                 <Text style={[styles.charCount, { color: C.warning, fontWeight: '600' }]}>
                   {sourceText.length}/10000
                 </Text>
+              ) : isPreparingVoice ? (
+                <View style={styles.listeningBadge}>
+                  <ActivityIndicator size="small" color={C.primary} />
+                  <Text style={[styles.listeningText, { color: C.primary }]}>
+                    {t.mVoiceLoadingTitle ?? 'Voice model loading'}
+                  </Text>
+                </View>
               ) : isCabinMode ? (
                 <View style={styles.listeningBadge}>
                   <View style={[styles.listeningDot, { backgroundColor: C.primary }]} />
@@ -1136,20 +1215,25 @@ export default function TranslatorScreen() {
                 {/* Cabin translation mic */}
                 <TouchableOpacity
                   onPress={() => void handleCabinToggle()}
+                  disabled={isPreparingVoice}
                   hitSlop={{ top: DS.space.sm, bottom: DS.space.sm, left: DS.space.sm, right: DS.space.sm }}
                 >
                   <Animated.View style={[
                     styles.cabinMicBtn,
-                    isCabinMode
+                    isCabinMode || isPreparingVoice
                       ? { backgroundColor: C.primary, ...DS.shadow.level2(isDark) }
                       : { backgroundColor: 'transparent' },
                     { transform: [{ scale: cabinPulseAnim }] },
                   ]}>
-                    <Ionicons
-                      name={isCabinMode ? 'mic' : 'mic-outline'}
-                      size={20}
-                      color={isCabinMode ? C.background : C.primary}
-                    />
+                    {isPreparingVoice ? (
+                      <ActivityIndicator size="small" color={C.background} />
+                    ) : (
+                      <Ionicons
+                        name={isCabinMode ? 'mic' : 'mic-outline'}
+                        size={20}
+                        color={isCabinMode ? C.background : C.primary}
+                      />
+                    )}
                   </Animated.View>
                 </TouchableOpacity>
 
@@ -1191,8 +1275,10 @@ export default function TranslatorScreen() {
           {/* In cabin mode the button becomes "Stop & Translate": stop listening + translate. */}
           <TranslateButton
             onPress={isCabinMode ? () => void handleStopAndTranslate() : handleTranslate}
-            disabled={isCabinMode ? false : (!sourceText.trim() || isTranslating)}
-            isTranslating={isTranslating}
+            disabled={isCabinMode
+              ? false
+              : (isTranslating || isStoppingCabinForTranslate || isImageProcessing || (!imagePreviewUri && !sourceText.trim()))}
+            isTranslating={isTranslating || isStoppingCabinForTranslate || isImageProcessing}
             isCabinMode={isCabinMode}
             colors={C}
             isDark={isDark}

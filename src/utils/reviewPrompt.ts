@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useStore } from '@/store/useStore';
 import { track } from '@/utils/analytics';
 
@@ -5,7 +6,7 @@ import { track } from '@/utils/analytics';
 //
 // After the user has clearly gotten value out of the app (a few successful translations),
 // and only at a handful of usage milestones, we surface an in-app review modal
-// (see components/LocalReviewPrompt). 5 stars → the native store sheet; 1–4 stars →
+// (see app/review.tsx). 5 stars → the native store sheet; 1–4 stars →
 // private feedback POSTed to our backend. We stop nagging once they've submitted once.
 const REVIEW_MILESTONES = [2, 10, 20];
 
@@ -24,6 +25,6 @@ export async function maybeAskForReview(): Promise<void> {
   if (count < REVIEW_MILESTONES[promptedTimes]) return;   // not at the next milestone yet
 
   state.incrementReviewPromptCount();
-  state.setReviewPromptVisible(true);
   track('local_review_prompted', { milestone: REVIEW_MILESTONES[promptedTimes] });
+  router.push('/review');
 }

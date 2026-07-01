@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Dimensions,
   Animated,
+  Easing,
   ScrollView,
   Image,
 } from 'react-native';
@@ -107,20 +108,28 @@ export default function OnboardingScreen() {
   }, [setAppLanguage]);
 
   const advance = useCallback(() => {
-    Animated.timing(slideX, { toValue: -W, duration: 240, useNativeDriver: true }).start(() => {
-      setStep(1);
-      slideX.setValue(W);
-      Animated.spring(slideX, { toValue: 0, useNativeDriver: true, speed: 22, bounciness: 0 }).start();
-    });
-  }, [slideX]);
+    if (step !== 0) return;
+    setStep(1);
+    slideX.stopAnimation();
+    Animated.timing(slideX, {
+      toValue: -W,
+      duration: 280,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [slideX, step]);
 
   const retreat = useCallback(() => {
-    Animated.timing(slideX, { toValue: W, duration: 200, useNativeDriver: true }).start(() => {
-      setStep(0);
-      slideX.setValue(-W);
-      Animated.spring(slideX, { toValue: 0, useNativeDriver: true, speed: 22, bounciness: 0 }).start();
-    });
-  }, [slideX]);
+    if (step !== 1) return;
+    setStep(0);
+    slideX.stopAnimation();
+    Animated.timing(slideX, {
+      toValue: 0,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [slideX, step]);
 
   const finish = useCallback(() => {
     setSourceLang(nativeLang);
@@ -232,9 +241,12 @@ export default function OnboardingScreen() {
         )}
       </View>
 
-      <Animated.View style={[s.slide, { transform: [{ translateX: slideX }] }]}>
-        {step === 0 ? renderStep0() : renderStep1()}
-      </Animated.View>
+      <View style={s.pager}>
+        <Animated.View style={[s.pagerTrack, { transform: [{ translateX: slideX }] }]}>
+          <View style={s.page}>{renderStep0()}</View>
+          <View style={s.page}>{renderStep1()}</View>
+        </Animated.View>
+      </View>
 
     </SafeAreaView>
   );
@@ -243,7 +255,9 @@ export default function OnboardingScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   safe:  { flex: 1 },
-  slide: { flex: 1, paddingHorizontal: DS.space.lg },
+  pager: { flex: 1, overflow: 'hidden' },
+  pagerTrack: { flex: 1, flexDirection: 'row', width: W * 2 },
+  page: { width: W, paddingHorizontal: DS.space.lg },
 
   navBar: {
     paddingHorizontal: DS.space.lg,

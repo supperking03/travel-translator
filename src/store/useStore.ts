@@ -56,10 +56,8 @@ interface TranslatorState {
   bumpSuccessfulTranslations: () => number;
   incrementReviewPromptCount: () => void;
 
-  // In-app (local) review modal
-  reviewPromptVisible: boolean;               // transient — controls the modal
-  setReviewPromptVisible: (v: boolean) => void;
-  localReviewSubmitted: boolean;              // persisted — don't nag once they've reviewed
+  // In-app (local) review — persisted so we don't nag once they've reviewed
+  localReviewSubmitted: boolean;
   setLocalReviewSubmitted: (v: boolean) => void;
 
   // Onboarding
@@ -131,8 +129,6 @@ export const useStore = create<TranslatorState>()(
       incrementReviewPromptCount: () =>
         set((state) => ({ reviewPromptCount: state.reviewPromptCount + 1 })),
 
-      reviewPromptVisible: false,
-      setReviewPromptVisible: (v) => set({ reviewPromptVisible: v }),
       localReviewSubmitted: false,
       setLocalReviewSubmitted: (v) => set({ localReviewSubmitted: v }),
 
