@@ -35,6 +35,20 @@ export type AppStrings = {
   mLangUnsupportedBody?: string;
   mSoon?: string;
   mTtsUnsupported?: string;
+  // In-app review modal
+  rvTitle?: string;
+  rvBody?: string;
+  rvFiveTitle?: string;
+  rvFiveBody?: string;
+  rvRateStoreCta?: string;
+  rvLowTitle?: string;
+  rvLowBody?: string;
+  rvPlaceholder?: string;
+  rvFeedbackCta?: string;
+  rvThanksTitle?: string;
+  rvThanksBody?: string;
+  rvDone?: string;
+  rvError?: string;
   mPhotoLibrary?: string;
   mTakePhoto?: string;
   mChooseFile?: string;
@@ -115,6 +129,19 @@ const en: AppStrings = {
   mLangUnsupportedBody:  "{lang} isn't available for offline translation yet. We're working on adding it.",
   mSoon:                 'Soon',
   mTtsUnsupported:       "Text-to-speech isn't available for this language yet.",
+  rvTitle:               'Is Nomad Translator useful to you?',
+  rvBody:                'Rate to let us know 🙏',
+  rvFiveTitle:           'You made our day! 🎉',
+  rvFiveBody:            'A quick rating on the store helps other travelers find us.',
+  rvRateStoreCta:        'Rate on the store',
+  rvLowTitle:            'Thanks for the honesty',
+  rvLowBody:             'What would make it better? (optional)',
+  rvPlaceholder:         'Tell us what to improve…',
+  rvFeedbackCta:         'Send feedback',
+  rvThanksTitle:         'Thank you!',
+  rvThanksBody:          'We read every message and keep improving.',
+  rvDone:                'Done',
+  rvError:               "Couldn't send. Please try again.",
   obHeadline:       'What\'s your native language?',
   obSub:            'Choose your mother tongue — we\'ll display the app in this language.',
   obContinue:       'Continue',
@@ -216,6 +243,19 @@ const vi: AppStrings = {
   mLangUnsupportedBody:  '{lang} chưa hỗ trợ dịch offline. Chúng tôi đang bổ sung.',
   mSoon:                 'Sắp có',
   mTtsUnsupported:       'Chưa hỗ trợ giọng đọc cho ngôn ngữ này.',
+  rvTitle:               'Nomad Translator có hữu ích với bạn không?',
+  rvBody:                'Đánh giá để cho tụi mình biết nhé 🙏',
+  rvFiveTitle:           'Tuyệt quá! 🎉',
+  rvFiveBody:            'Một đánh giá nhanh trên store giúp nhiều người tìm thấy app hơn.',
+  rvRateStoreCta:        'Đánh giá trên store',
+  rvLowTitle:            'Cảm ơn bạn đã góp ý thẳng thắn',
+  rvLowBody:             'Điều gì sẽ khiến app tốt hơn? (không bắt buộc)',
+  rvPlaceholder:         'Cho chúng tôi biết cần cải thiện gì…',
+  rvFeedbackCta:         'Gửi góp ý',
+  rvThanksTitle:         'Cảm ơn bạn!',
+  rvThanksBody:          'Chúng tôi đọc mọi góp ý và liên tục cải thiện.',
+  rvDone:                'Xong',
+  rvError:               'Gửi không được. Vui lòng thử lại.',
   obHeadline:       'Ngôn ngữ mẹ đẻ của bạn là gì?',
   obSub:            'Chọn tiếng mẹ đẻ — chúng tôi sẽ hiển thị app bằng ngôn ngữ này.',
   obContinue:       'Tiếp tục',

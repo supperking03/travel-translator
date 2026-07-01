@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useDSColors, useDSIsDark } from '@/constants/designSystem';
 import { track } from '@/utils/analytics';
+import { LocalReviewPrompt } from '@/components/LocalReviewPrompt';
 
 export default function RootLayout() {
   const C      = useDSColors();
@@ -47,6 +48,7 @@ export default function RootLayout() {
             }}
           />
         </Stack>
+        <LocalReviewPrompt />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

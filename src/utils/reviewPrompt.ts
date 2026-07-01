@@ -1,19 +1,17 @@
-import * as StoreReview from '@/utils/storeReview';
 import { useStore } from '@/store/useStore';
 import { track } from '@/utils/analytics';
 
-// Happy-path App Store review prompt.
+// Happy-path review prompt.
 //
-// We only ask the system to surface the native review sheet after the user has clearly
-// gotten value out of the app (a few successful translations), and only at a handful of
-// usage milestones. iOS itself rate-limits SKStoreReviewController to ~3 prompts / 365
-// days and silently no-ops the rest, so these milestones are an upper bound — most users
-// see the sheet at most once. We never block translation on this; it's strictly best-effort.
+// After the user has clearly gotten value out of the app (a few successful translations),
+// and only at a handful of usage milestones, we surface an in-app review modal
+// (see components/LocalReviewPrompt). 5 stars → the native store sheet; 1–4 stars →
+// private feedback POSTed to our backend. We stop nagging once they've submitted once.
 const REVIEW_MILESTONES = [2, 10, 20];
 
 /**
  * Records one successful translation and, if the user just crossed the next usage
- * milestone, asks iOS to present the native "rate this app" sheet. Fire-and-forget:
+ * milestone (and hasn't reviewed yet), opens the in-app review modal. Fire-and-forget:
  * call it on the happy path and don't await it.
  */
 export async function maybeAskForReview(): Promise<void> {
@@ -21,20 +19,11 @@ export async function maybeAskForReview(): Promise<void> {
   const count = state.bumpSuccessfulTranslations();
   const promptedTimes = state.reviewPromptCount;
 
-  // Already asked at every milestone we're willing to use.
-  if (promptedTimes >= REVIEW_MILESTONES.length) return;
+  if (state.localReviewSubmitted) return;                 // already reviewed — never nag again
+  if (promptedTimes >= REVIEW_MILESTONES.length) return;  // used up our milestones
+  if (count < REVIEW_MILESTONES[promptedTimes]) return;   // not at the next milestone yet
 
-  // Haven't reached the next milestone yet.
-  if (count < REVIEW_MILESTONES[promptedTimes]) return;
-
-  try {
-    if (!(await StoreReview.isAvailableAsync())) return;
-    await StoreReview.requestReview();
-    // Count the attempt regardless of whether iOS actually rendered the sheet — there's
-    // no callback telling us if it showed, and retrying would only risk nagging.
-    state.incrementReviewPromptCount();
-    track('review_prompted', { milestone: REVIEW_MILESTONES[promptedTimes] });
-  } catch {
-    // Best-effort: never let a review-prompt failure bubble into the translation flow.
-  }
+  state.incrementReviewPromptCount();
+  state.setReviewPromptVisible(true);
+  track('local_review_prompted', { milestone: REVIEW_MILESTONES[promptedTimes] });
 }

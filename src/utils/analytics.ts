@@ -24,6 +24,12 @@ export const posthog: PostHog | null = POSTHOG_API_KEY
       // the app backgrounds) — easy on battery/network.
       flushAt: 20,
       flushInterval: 30000,
+      // We only capture events — no feature flags / surveys / remote config. Turning these
+      // off stops the startup remote-config fetch that otherwise logs
+      // "Remote config could not be loaded" network errors.
+      disableRemoteConfig: true,
+      preloadFeatureFlags: false,
+      disableSurveys: true,
     })
   : null;
 
