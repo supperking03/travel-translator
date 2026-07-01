@@ -1,6 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   View,
   Text,
   TouchableOpacity,
@@ -15,114 +14,31 @@ import { useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useStore } from '@/store/useStore';
-import { useWhisper } from '@/hooks/useWhisper';
-import { getWhisperModelSizeMB, deleteWhisperModel } from '@/utils/whisperModelManager';
-import { WHISPER_MODEL_SIZE_MB } from '@/constants/whisperModel';
 import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem';
 import { useI18n } from '@/i18n/useI18n';
-import { track, trackScreen } from '@/utils/analytics';
+import { trackScreen } from '@/utils/analytics';
 
 const UI_LANGUAGES = [
-  { code: 'en', name: 'English', nativeName: 'English' },
-  { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt' },
-  { code: 'es', name: 'Spanish', nativeName: 'Español' },
-  { code: 'fr', name: 'French', nativeName: 'Français' },
-  { code: 'de', name: 'German', nativeName: 'Deutsch' },
-  { code: 'it', name: 'Italian', nativeName: 'Italiano' },
-  { code: 'pt', name: 'Portuguese', nativeName: 'Português' },
-  { code: 'ja', name: 'Japanese', nativeName: '日本語' },
-  { code: 'ko', name: 'Korean', nativeName: '한국어' },
-  { code: 'zh', name: 'Chinese', nativeName: '中文' },
-  { code: 'ar', name: 'Arabic', nativeName: 'العربية' },
-  { code: 'ru', name: 'Russian', nativeName: 'Русский' },
-  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी' },
-  { code: 'th', name: 'Thai', nativeName: 'ไทย' },
-  { code: 'id', name: 'Indonesian', nativeName: 'Bahasa Indonesia' },
-  { code: 'nl', name: 'Dutch', nativeName: 'Nederlands' },
+  { code: 'en', name: 'English', nativeName: 'English', flag: '🇬🇧' },
+  { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt', flag: '🇻🇳' },
+  { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
+  { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
+  { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
+  { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
+  { code: 'ja', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵' },
+  { code: 'ko', name: 'Korean', nativeName: '한국어', flag: '🇰🇷' },
+  { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
+  { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
+  { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' },
+  { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳' },
+  { code: 'th', name: 'Thai', nativeName: 'ไทย', flag: '🇹🇭' },
+  { code: 'id', name: 'Indonesian', nativeName: 'Bahasa Indonesia', flag: '🇮🇩' },
+  { code: 'nl', name: 'Dutch', nativeName: 'Nederlands', flag: '🇳🇱' },
 ] as const;
 
 const SUPPORT_URL = 'https://nomad-translator.com/support.html';
 const PRIVACY_URL = 'https://nomad-translator.com/privacy-policy.html';
-
-// ─── Status card ──────────────────────────────────────────────────────────────
-function PackStatusCard({
-  isReady, isDownloading, isLoading,
-  downloadProgress, isDark, colors, title, subtitle, sizeMB, children,
-}: {
-  isReady: boolean; isDownloading: boolean; isLoading: boolean;
-  downloadProgress: number; isDark: boolean; colors: DSColors;
-  title: string;
-  subtitle?: string;
-  sizeMB: number;
-  children?: React.ReactNode;
-}) {
-  const t = useI18n();
-
-  const statusColor = isReady       ? colors.success
-                    : isDownloading ? colors.primary
-                    : isLoading     ? colors.primary
-                    :                 colors.warning;
-
-  const statusLabel = isReady       ? t.sStatusReady
-                    : isDownloading ? t.sStatusLoading
-                    : isLoading     ? t.sStatusLoading
-                    :                 t.sStatusNotInstalled;
-
-  const iconName: React.ComponentProps<typeof Ionicons>['name'] =
-    isReady       ? 'checkmark-circle-outline'
-    : isDownloading ? 'cloud-download-outline'
-    : isLoading   ? 'hourglass-outline'
-    :               'cloud-outline';
-
-  return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, DS.shadow.level2(isDark)]}>
-      <View style={styles.cardHeader}>
-        <View style={[styles.cardIcon, { backgroundColor: `${statusColor}18` }]}>
-          <Ionicons name={iconName} size={26} color={statusColor} />
-        </View>
-        <View style={styles.cardMeta}>
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{title}</Text>
-          <Text style={[styles.cardSub, { color: colors.textMuted }]}>{subtitle ?? t.sPackSub}</Text>
-        </View>
-        <View style={[styles.statusPill, { backgroundColor: `${statusColor}18` }]}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
-        </View>
-      </View>
-
-      {isDownloading && (
-        <>
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <View style={styles.progressWrap}>
-            <View style={styles.progressLabelRow}>
-              <Text style={[styles.progressText, { color: colors.textMuted }]}>
-                {`${Math.round(downloadProgress * sizeMB)} MB / ${sizeMB} MB`}
-              </Text>
-              <Text style={[styles.progressPct, { color: colors.primary }]}>
-                {Math.round(downloadProgress * 100)}%
-              </Text>
-            </View>
-            <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { backgroundColor: colors.primary, width: `${downloadProgress * 100}%` as any },
-                ]}
-              />
-            </View>
-          </View>
-        </>
-      )}
-
-      {children ? (
-        <>
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <View style={styles.packActions}>{children}</View>
-        </>
-      ) : null}
-    </View>
-  );
-}
 
 // ─── Action row ───────────────────────────────────────────────────────────────
 function ActionRow({
@@ -156,40 +72,6 @@ function ActionRow({
         )}
       </View>
       <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
-    </TouchableOpacity>
-  );
-}
-
-function PrimaryPackAction({
-  label,
-  onPress,
-  colors,
-  isDark,
-  loading = false,
-}: {
-  label: string;
-  onPress: () => void;
-  colors: DSColors;
-  isDark: boolean;
-  loading?: boolean;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.82}
-      disabled={loading}
-      style={[
-        styles.primaryAction,
-        { backgroundColor: colors.primary, opacity: loading ? 0.72 : 1 },
-        DS.shadow.level2(isDark),
-      ]}
-    >
-      {loading ? (
-        <ActivityIndicator color={colors.background} size="small" />
-      ) : (
-        <Ionicons name="cloud-download-outline" size={18} color={colors.background} />
-      )}
-      <Text style={[styles.primaryActionLabel, { color: colors.background }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -251,42 +133,20 @@ export default function SettingsScreen() {
   const nav    = useNavigation();
 
   const {
-    whisperModelStatus, whisperDownloadProgress,
     appLanguage, setAppLanguage,
     themePreference, setThemePreference,
   } = useStore();
-  const whisper = useWhisper();
 
-  const [whisperSavedSizeMB, setWhisperSavedSizeMB] = useState<number | null>(null);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
 
   useEffect(() => { trackScreen('settings'); }, []);
-
-  // Fire "download success" only on the transition INTO ready — seed the ref with the
-  // current status so a screen open while a pack is already installed doesn't re-fire.
-  const prevWhisperStatus = useRef(whisperModelStatus);
-  useEffect(() => {
-    if (whisperModelStatus === 'ready' && prevWhisperStatus.current !== 'ready') {
-      track('model_download_success', { pack: 'voice' });
-    }
-    prevWhisperStatus.current = whisperModelStatus;
-  }, [whisperModelStatus]);
 
   // Localize the navigation header title
   useEffect(() => {
     nav.setOptions({ title: t.sTitle });
   }, [t.sTitle, nav]);
 
-  useEffect(() => {
-    getWhisperModelSizeMB().then(setWhisperSavedSizeMB);
-  }, [whisperModelStatus]);
-
   const currentUiLanguage = UI_LANGUAGES.find((lang) => lang.code === appLanguage) ?? UI_LANGUAGES[0];
-
-  const whisperIsDownloading = whisperModelStatus === 'downloading';
-  const whisperIsLoading     = whisperModelStatus === 'loading';
-  const whisperIsReady       = whisperModelStatus === 'ready';
-  const whisperNotDownloaded = whisperModelStatus === 'not_downloaded' || whisperModelStatus === 'error';
 
   const openExternalLink = async (url: string) => {
     try {
@@ -296,49 +156,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleWhisperDownload = () =>
-    Alert.alert(
-      t.sVoiceDownload ?? 'Download Voice Model',
-      `~${WHISPER_MODEL_SIZE_MB} MB · ${t.sVoiceDownloadConfirm ?? 'Required for voice input (offline speech recognition).'}`,
-      [
-        { text: t.aCancel, style: 'cancel' },
-        { text: t.aDownload, onPress: whisper.downloadAndLoad },
-      ]
-    );
-
-  const handleWhisperRedownload = () =>
-    Alert.alert(
-      t.sVoiceRedownload ?? 'Re-download Voice Model',
-      `~${WHISPER_MODEL_SIZE_MB} MB`,
-      [
-        { text: t.aCancel, style: 'cancel' },
-        {
-          text: t.aDownload,
-          onPress: async () => {
-            await deleteWhisperModel();
-            whisper.downloadAndLoad();
-          },
-        },
-      ]
-    );
-
-  const handleWhisperDelete = () =>
-    Alert.alert(
-      t.sVoiceDelete ?? 'Delete Voice Model',
-      t.sVoiceDeleteConfirm ?? 'This will disable voice input until you re-download.',
-      [
-        { text: t.aCancel, style: 'cancel' },
-        {
-          text: t.aDelete,
-          style: 'destructive',
-          onPress: async () => {
-            await deleteWhisperModel();
-            setWhisperSavedSizeMB(null);
-          },
-        },
-      ]
-    );
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: C.background }]} edges={['bottom']}>
       <ScrollView
@@ -346,66 +163,6 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-
-        {/* ── Voice Recognition (Whisper) ──────────────────────────────── */}
-        <PackStatusCard
-          isReady={whisperIsReady}
-          isDownloading={whisperIsDownloading}
-          isLoading={whisperIsLoading}
-          downloadProgress={whisperDownloadProgress}
-          isDark={isDark}
-          colors={C}
-          title={t.sVoicePackTitle ?? 'Speech-to-Text Pack'}
-          subtitle={`${t.sVoicePackSub ?? 'Offline voice recognition for voice input'} (~${WHISPER_MODEL_SIZE_MB} MB)`}
-          sizeMB={WHISPER_MODEL_SIZE_MB}
-        >
-          {whisperNotDownloaded && !whisperIsDownloading && !whisperIsLoading && (
-            <View style={styles.primaryBlock}>
-              <PrimaryPackAction
-                label={t.sVoiceDownload ?? 'Download Voice Model'}
-                onPress={handleWhisperDownload}
-                colors={C}
-                isDark={isDark}
-              />
-            </View>
-          )}
-
-          <View style={styles.rowGroup}>
-            {whisperIsDownloading && (
-              <ActionRow
-                icon="close-circle-outline"
-                label={t.sCancelDownload}
-                variant="danger"
-                onPress={whisper.cancelDownload}
-                isDark={isDark}
-                colors={C}
-              />
-            )}
-
-            {(whisperIsReady || whisperSavedSizeMB !== null) && !whisperIsDownloading && !whisperIsLoading && (
-              <ActionRow
-                icon="arrow-down-circle-outline"
-                label={t.sRedownload}
-                description={t.sRedownloadDesc}
-                onPress={handleWhisperRedownload}
-                isDark={isDark}
-                colors={C}
-              />
-            )}
-
-            {(whisperIsReady || whisperSavedSizeMB !== null) && !whisperIsDownloading && !whisperIsLoading && (
-              <ActionRow
-                icon="trash-outline"
-                label={t.sDeletePack}
-                description={t.sVoiceDeleteDesc ?? 'Disables voice input'}
-                variant="danger"
-                onPress={handleWhisperDelete}
-                isDark={isDark}
-                colors={C}
-              />
-            )}
-          </View>
-        </PackStatusCard>
 
         {(
           <ActionRow
@@ -483,6 +240,7 @@ export default function SettingsScreen() {
                     activeOpacity={0.7}
                     style={[styles.languageRow, { borderBottomColor: C.border }]}
                   >
+                    <Text style={styles.languageFlag}>{language.flag}</Text>
                     <View style={styles.languageText}>
                       <Text style={[styles.languageNative, { color: isSelected ? C.primary : C.textPrimary }]}>
                         {language.nativeName}
@@ -627,7 +385,7 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: DS.radius.xxl,
     borderTopRightRadius: DS.radius.xxl,
-    maxHeight: '78%',
+    maxHeight: '70%',
     paddingBottom: 24,
   },
   handle: {
@@ -657,11 +415,12 @@ const styles = StyleSheet.create({
   languageRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: DS.space.sm + DS.space.xs,
     paddingHorizontal: DS.space.md + DS.space.xs,
     paddingVertical: DS.space.md - 1,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  languageFlag:   { fontSize: DS.icon.lg - 2, width: 32, textAlign: 'center' },
   languageText:   { flex: 1, gap: 2 },
   languageNative: { ...DS.type.subhead, fontWeight: '600' },
   languageName:   { ...DS.type.caption1 },

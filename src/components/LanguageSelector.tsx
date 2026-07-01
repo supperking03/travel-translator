@@ -15,6 +15,7 @@ import { LANGUAGES, Language, getLanguageByCode } from '@/constants/languages';
 import { isMlkitSupported } from '@/constants/mlkitLanguages';
 import { DS, useDSColors, useDSIsDark } from '@/constants/designSystem';
 import { useI18n } from '@/i18n/useI18n';
+import { track } from '@/utils/analytics';
 
 interface Props {
   selectedCode: string;
@@ -41,6 +42,7 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
 
   const handleSelect = (lang: Language) => {
     if (!isMlkitSupported(lang.code)) {
+      track('language_unsupported_selected', { code: lang.code });
       Alert.alert(
         t.mLangUnsupportedTitle ?? 'Not supported yet',
         (t.mLangUnsupportedBody ?? "{lang} isn't available for offline translation yet.").replace('{lang}', lang.name),

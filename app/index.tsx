@@ -281,7 +281,6 @@ function TranslationResultCard({
 }) {
   const t        = useI18n();
   const lang     = getLanguageByCode(targetLangCode);
-  const canSpeak = !!lang?.ttsLocale;
   const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
   const [selectedOverlayKey, setSelectedOverlayKey] = useState<string | null>(null);
   const hasImagePreview = !!imagePreviewUri && !!imageAspectRatio;
@@ -458,29 +457,27 @@ function TranslationResultCard({
 
       {/* Action chips */}
       <View style={[styles.resultActions, { borderTopColor: colors.border }]}>
-        {canSpeak && (
-          <TouchableOpacity
-            style={[
-              styles.actionChip,
-              {
-                backgroundColor: isSpeaking ? colors.primary : colors.accentSoft,
-                borderWidth: 1,
-                borderColor: isSpeaking ? colors.primary : colors.primary + '28',
-              },
-            ]}
-            onPress={onSpeak}
-            activeOpacity={0.75}
-          >
-            <Ionicons
-              name={isSpeaking ? 'stop-circle' : 'volume-high-outline'}
-              size={DS.icon.xs + 3}
-              color={isSpeaking ? colors.background : colors.primary}
-            />
-            <Text style={[styles.actionChipText, { color: isSpeaking ? colors.background : colors.primary }]}>
-              {isSpeaking ? t.mStop : t.mSpeak}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[
+            styles.actionChip,
+            {
+              backgroundColor: isSpeaking ? colors.primary : colors.accentSoft,
+              borderWidth: 1,
+              borderColor: isSpeaking ? colors.primary : colors.primary + '28',
+            },
+          ]}
+          onPress={onSpeak}
+          activeOpacity={0.75}
+        >
+          <Ionicons
+            name={isSpeaking ? 'stop-circle' : 'volume-high-outline'}
+            size={DS.icon.xs + 3}
+            color={isSpeaking ? colors.background : colors.primary}
+          />
+          <Text style={[styles.actionChipText, { color: isSpeaking ? colors.background : colors.primary }]}>
+            {isSpeaking ? t.mStop : t.mSpeak}
+          </Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.actionChip, {
@@ -644,13 +641,12 @@ export default function TranslatorScreen() {
     if (isCabinMode) { await stopCabinMode(); return; }
 
     if (!whisper.isReady) {
+      // The voice model ships bundled in the app; if it's still initialising at tap time,
+      // nudge the load and ask the user to retry in a moment. No download step exists.
+      whisper.loadModel();
       Alert.alert(
-        t.mVoiceNotReadyTitle ?? 'Voice model not ready',
-        t.mVoiceNotReadyDesc ?? 'Download the speech-to-text model in Settings to use voice input.',
-        [
-          { text: t.aCancel, style: 'cancel' },
-          { text: t.aDownload, onPress: () => router.push('/settings') },
-        ]
+        t.mVoiceNotReadyTitle ?? 'Voice model loading',
+        t.mLoadingSub ?? 'This may take a moment',
       );
       return;
     }
@@ -693,6 +689,7 @@ export default function TranslatorScreen() {
       setTranslatedText(result);
       addHistory({ sourceText: text, translatedText: result, sourceLang: sourceLangRef.current, targetLang: targetLangRef.current });
       track('translate', {
+        engine: 'mlkit',
         mode,
         sourceLang: sourceLangRef.current,
         targetLang: targetLangRef.current,
@@ -836,7 +833,7 @@ export default function TranslatorScreen() {
         targetLang,
       });
       setImagePhase('done');
-      track('translate', { mode: 'image', targetLang, blocks: rawBlocks.length });
+      track('translate', { engine: 'mlkit', mode: 'image', targetLang, blocks: rawBlocks.length });
       // Happy path: a full image was just translated — let it land, then maybe ask for a review.
       setTimeout(() => { void maybeAskForReview(); }, 800);
     } catch (err) {
@@ -844,6 +841,23 @@ export default function TranslatorScreen() {
       setImagePhase('error');
     }
   }, [addHistory, isReady, router, setIsTranslating, setSourceText, setTranslatedText, sourceLang, targetLang, translate]);
+
+  // Re-translate the image currently on screen whenever the languages change — e.g. the
+  // user taps swap (from↔to) while an image result is showing. Uses a ref so the re-run
+  // always picks up the freshly-swapped languages, not a stale closure.
+  const processImageRef = useRef(processImageTranslation);
+  useEffect(() => { processImageRef.current = processImageTranslation; });
+  useEffect(() => {
+    if (
+      resultMode === 'image' &&
+      imagePreviewUri &&
+      imagePhase !== 'ocr' &&
+      imagePhase !== 'translating'
+    ) {
+      void processImageRef.current(imagePreviewUri);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceLang, targetLang]);
 
 
   const handlePickPhoto = useCallback(async () => {
@@ -987,7 +1001,14 @@ export default function TranslatorScreen() {
 
   const speakText = useCallback(async (textToSpeak: string, langCode: string) => {
     const lang = getLanguageByCode(langCode);
-    if (!lang?.ttsLocale || !textToSpeak.trim()) return;
+    if (!textToSpeak.trim()) return;
+    if (!lang?.ttsLocale) {
+      Alert.alert(
+        t.mLangUnsupportedTitle ?? 'Not supported yet',
+        t.mTtsUnsupported ?? "Text-to-speech isn't available for this language yet.",
+      );
+      return;
+    }
     if (isSpeaking) {
       Speech.stop();
       setIsSpeaking(false);
@@ -1011,7 +1032,7 @@ export default function TranslatorScreen() {
       onError:   () => setIsSpeaking(false),
       onStopped: () => setIsSpeaking(false),
     });
-  }, [isSpeaking]);
+  }, [isSpeaking, t]);
 
   const handleSpeak = useCallback(() => {
     void speakText(translatedText, targetLang);

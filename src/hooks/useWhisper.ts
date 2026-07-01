@@ -2,12 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { initWhisper, WhisperContext } from 'whisper.rn';
 import { useStore } from '@/store/useStore';
-import {
-  isWhisperModelDownloaded,
-  ensureWhisperModelDir,
-  createWhisperModelDownload,
-} from '@/utils/whisperModelManager';
-import { getWhisperModelPath } from '@/constants/whisperModel';
+import { getBundledWhisperPath } from '@/utils/bundledWhisper';
 
 let _whisperContext: WhisperContext | null = null;
 let _loadingPromise: Promise<void> | null = null;
@@ -18,7 +13,6 @@ function isMissingNativeContextError(err: unknown) {
 }
 
 export function useWhisper() {
-  const downloadRef = useRef<ReturnType<typeof createWhisperModelDownload> | null>(null);
   const realtimeRef = useRef<{ stop: () => Promise<void> } | null>(null);
   // Resolves when the native realtime capture has actually ended (the isCapturing:false
   // event), not just when stop() returns. stop() only *requests* an abort, so we must wait
@@ -29,10 +23,11 @@ export function useWhisper() {
   const {
     whisperModelStatus,
     setWhisperModelStatus,
-    setWhisperDownloadProgress,
     setWhisperModelError,
   } = useStore();
 
+  // The Whisper model ships inside the app binary (see bundledWhisper.ts / withWhisperModel
+  // plugin), so there is no download step — just load the bundled file.
   const loadModel = useCallback(async () => {
     if (_loadingPromise) return _loadingPromise;
 
@@ -40,7 +35,8 @@ export function useWhisper() {
       try {
         setWhisperModelStatus('loading');
         setWhisperModelError(null);
-        _whisperContext = await initWhisper({ filePath: getWhisperModelPath() });
+        const filePath = await getBundledWhisperPath();
+        _whisperContext = await initWhisper({ filePath });
         setWhisperModelStatus('ready');
       } catch (err) {
         setWhisperModelError(err instanceof Error ? err.message : 'Failed to load Whisper');
@@ -53,43 +49,9 @@ export function useWhisper() {
     return _loadingPromise;
   }, [setWhisperModelStatus, setWhisperModelError]);
 
-  const downloadAndLoad = useCallback(async () => {
-    try {
-      await ensureWhisperModelDir();
-      setWhisperModelStatus('downloading');
-      setWhisperDownloadProgress(0);
-      setWhisperModelError(null);
-
-      downloadRef.current = createWhisperModelDownload((progress, _mb) => {
-        setWhisperDownloadProgress(progress);
-      });
-
-      const result = await downloadRef.current.downloadAsync();
-      if (!result || result.status !== 200) {
-        throw new Error(`Download failed with status ${result?.status}`);
-      }
-
-      await loadModel();
-    } catch (err) {
-      setWhisperModelError(err instanceof Error ? err.message : 'Download failed');
-      setWhisperModelStatus('error');
-    }
-  }, [loadModel, setWhisperModelStatus, setWhisperDownloadProgress, setWhisperModelError]);
-
-  const cancelDownload = useCallback(async () => {
-    if (downloadRef.current) {
-      await downloadRef.current.cancelAsync();
-      downloadRef.current = null;
-      setWhisperModelStatus('not_downloaded');
-      setWhisperDownloadProgress(0);
-    }
-  }, [setWhisperModelStatus, setWhisperDownloadProgress]);
-
   useEffect(() => {
-    if (!_whisperContext && !_loadingPromise && whisperModelStatus !== 'downloading') {
-      isWhisperModelDownloaded().then((exists) => {
-        if (exists) loadModel();
-      });
+    if (!_whisperContext && !_loadingPromise) {
+      loadModel();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -235,8 +197,6 @@ export function useWhisper() {
   }, [ensureContext, stopListening]);
 
   return {
-    downloadAndLoad,
-    cancelDownload,
     loadModel,
     startListening,
     stopListening,

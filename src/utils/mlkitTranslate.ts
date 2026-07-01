@@ -2,6 +2,7 @@ import FastTranslator from 'fast-mlkit-translate-text';
 import type { Languages } from 'fast-mlkit-translate-text';
 import { useStore } from '@/store/useStore';
 import { toMlkitLanguage } from '@/constants/mlkitLanguages';
+import { track } from '@/utils/analytics';
 
 export class MlkitUnsupportedLanguageError extends Error {
   constructor(public code: string) {
@@ -75,9 +76,13 @@ async function preparePair(source: Languages, target: Languages): Promise<void> 
   let startedAt = 0;
   if (needsDownload) {
     // Offline + pack missing → fail fast instead of letting ML Kit hang on the download.
-    if (!(await isOnline())) throw new MlkitOfflineError(label);
+    if (!(await isOnline())) {
+      track('mlkit_offline_blocked', { pair: label });
+      throw new MlkitOfflineError(label);
+    }
     store.setMlkitPack('downloading', label);
     startedAt = Date.now();
+    track('mlkit_pack_download_start', { pair: label });
   }
 
   try {
@@ -86,8 +91,12 @@ async function preparePair(source: Languages, target: Languages): Promise<void> 
       needsDownload ? 90000 : 15000,
     );
     preparedKey = key;
+    if (needsDownload) {
+      track('mlkit_pack_download_success', { pair: label, ms: Date.now() - startedAt });
+    }
   } catch {
     // Download stalled or dropped mid-way — treat as an offline/connection failure.
+    if (needsDownload) track('mlkit_offline_blocked', { pair: label });
     throw new MlkitOfflineError(label);
   } finally {
     if (needsDownload) {

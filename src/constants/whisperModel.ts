@@ -1,9 +1,9 @@
 import * as LegacyFS from 'expo-file-system/legacy';
 
-export const WHISPER_MODEL_FILENAME = 'ggml-base.bin';
+export const WHISPER_MODEL_FILENAME = 'ggml-base-q5_1.bin';
 export const WHISPER_MODEL_URL =
-  'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin';
-export const WHISPER_MODEL_SIZE_MB = 142;
+  'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin';
+export const WHISPER_MODEL_SIZE_MB = 56;
 
 export const getWhisperModelDir = () => `${LegacyFS.documentDirectory}whisper/`;
 export const getWhisperModelPath = () =>

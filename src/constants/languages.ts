@@ -11,8 +11,8 @@ export interface Language {
   isChinese?: boolean;
 }
 
-// All 33+ languages supported by Hy-MT1.5-1.8B
-// Ordered by travel usefulness
+// 66 languages exposed in the picker; 60 translate via Google ML Kit (the 6 in
+// MLKIT_UNSUPPORTED_CODES show a "Soon" badge). Ordered by travel usefulness.
 export const LANGUAGES: Language[] = [
   { code: 'en',    name: 'English',            nativeName: 'English',           flag: '🇬🇧', promptName: 'English',      ttsLocale: 'en-US' },
   { code: 'zh',    name: 'Chinese',            nativeName: '中文',              flag: '🇨🇳', promptName: '中文',         ttsLocale: 'zh-CN', isChinese: true },
@@ -58,7 +58,7 @@ export const LANGUAGES: Language[] = [
   { code: 'fi',    name: 'Finnish',            nativeName: 'Suomi',             flag: '🇫🇮', promptName: 'Finnish',      ttsLocale: 'fi-FI' },
   { code: 'no',    name: 'Norwegian',          nativeName: 'Norsk',             flag: '🇳🇴', promptName: 'Norwegian',    ttsLocale: 'no-NO' },
   { code: 'sk',    name: 'Slovak',             nativeName: 'Slovenčina',        flag: '🇸🇰', promptName: 'Slovak',       ttsLocale: 'sk-SK' },
-  { code: 'hr',    name: 'Croatian',           nativeName: 'Hrvatski',          flag: '🇭🇷', promptName: 'Croatian',     ttsLocale: null },
+  { code: 'hr',    name: 'Croatian',           nativeName: 'Hrvatski',          flag: '🇭🇷', promptName: 'Croatian',     ttsLocale: 'hr-HR' },
   { code: 'bg',    name: 'Bulgarian',          nativeName: 'Български',          flag: '🇧🇬', promptName: 'Bulgarian',    ttsLocale: null },
   { code: 'sl',    name: 'Slovenian',          nativeName: 'Slovenščina',       flag: '🇸🇮', promptName: 'Slovenian',    ttsLocale: null },
   { code: 'et',    name: 'Estonian',           nativeName: 'Eesti',             flag: '🇪🇪', promptName: 'Estonian',     ttsLocale: null },
@@ -71,7 +71,7 @@ export const LANGUAGES: Language[] = [
   { code: 'ga',    name: 'Irish',              nativeName: 'Gaeilge',           flag: '🇮🇪', promptName: 'Irish',        ttsLocale: null },
   { code: 'cy',    name: 'Welsh',              nativeName: 'Cymraeg',           flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿', promptName: 'Welsh',        ttsLocale: null },
   { code: 'mt',    name: 'Maltese',            nativeName: 'Malti',             flag: '🇲🇹', promptName: 'Maltese',      ttsLocale: null },
-  { code: 'ca',    name: 'Catalan',            nativeName: 'Català',            flag: '🇪🇸', promptName: 'Catalan',      ttsLocale: null },
+  { code: 'ca',    name: 'Catalan',            nativeName: 'Català',            flag: '🇪🇸', promptName: 'Catalan',      ttsLocale: 'ca-ES' },
   { code: 'gl',    name: 'Galician',           nativeName: 'Galego',            flag: '🇪🇸', promptName: 'Galician',     ttsLocale: null },
   { code: 'af',    name: 'Afrikaans',          nativeName: 'Afrikaans',         flag: '🇿🇦', promptName: 'Afrikaans',    ttsLocale: null },
   { code: 'sw',    name: 'Swahili',            nativeName: 'Kiswahili',         flag: '🇹🇿', promptName: 'Swahili',      ttsLocale: null },

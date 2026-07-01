@@ -5,8 +5,11 @@
  * starts with `phc_`) and pick the host for your region below. Until a key is set every
  * call is a safe no-op, so the app runs fine without analytics configured.
  *
- * Basic events captured: app_open, screen_view, onboarding_complete, translate
- * (mode: text/image/voice + langs), tts_speak, copy_translation, review_prompted.
+ * Events captured: app_open, screen_view, onboarding_complete,
+ * translate (engine + mode: text/image/voice + langs), tts_speak, copy_translation,
+ * review_prompted, and the ML Kit per-language pack funnel:
+ * mlkit_pack_download_start / mlkit_pack_download_success ({pair, ms}) /
+ * mlkit_offline_blocked ({pair}), plus language_unsupported_selected ({code}).
  */
 import { PostHog } from 'posthog-react-native';
 

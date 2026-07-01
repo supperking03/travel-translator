@@ -16,6 +16,7 @@
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		F14100012D1000010044C1D9 /* TextRecognitionModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = F14100002D1000010044C1D9 /* TextRecognitionModule.swift */; };
 		F14100032D1000030044C1D9 /* TextRecognitionModuleBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = F14100022D1000030044C1D9 /* TextRecognitionModuleBridge.m */; };
+		D44DD39150EE496BB5FB42A4 /* ggml-base-q5_1.bin in Resources */ = {isa = PBXBuildFile; fileRef = F70D5B065E1443BAA65C14B0 /* ggml-base-q5_1.bin */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +35,7 @@
 		F11748442D0722820044C1D9 /* TravelTranslator-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "TravelTranslator-Bridging-Header.h"; path = "TravelTranslator/TravelTranslator-Bridging-Header.h"; sourceTree = "<group>"; };
 		F14100002D1000010044C1D9 /* TextRecognitionModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TextRecognitionModule.swift; path = TravelTranslator/TextRecognitionModule.swift; sourceTree = "<group>"; };
 		F14100022D1000030044C1D9 /* TextRecognitionModuleBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TextRecognitionModuleBridge.m; path = TravelTranslator/TextRecognitionModuleBridge.m; sourceTree = "<group>"; };
+		F70D5B065E1443BAA65C14B0 /* ggml-base-q5_1.bin */ = {isa = PBXFileReference; name = "ggml-base-q5_1.bin"; path = "../assets/whisper/ggml-base-q5_1.bin"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -97,6 +99,7 @@
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				F702F74518ED46F064A852CE /* Pods */,
 				2A997A7336D2F11A22F29002 /* ExpoModulesProviders */,
+				7B1BEA4F354B4FD5A5DC7361 /* Resources */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -136,6 +139,15 @@
 			);
 			path = Pods;
 			sourceTree = "<group>";
+		};
+		7B1BEA4F354B4FD5A5DC7361 /* Resources */ = {
+			isa = "PBXGroup";
+			children = (
+				F70D5B065E1443BAA65C14B0 /* ggml-base-q5_1.bin */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+			path = "";
 		};
 /* End PBXGroup section */
 
@@ -202,6 +214,7 @@
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				BB844ED49530204B361AECA7 /* PrivacyInfo.xcprivacy in Resources */,
+				D44DD39150EE496BB5FB42A4 /* ggml-base-q5_1.bin in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -402,7 +415,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.theluxenomad.freeofflinetranslator;
-				PRODUCT_NAME = NomadTranslator;
+				PRODUCT_NAME = "NomadTranslator";
 				SWIFT_OBJC_BRIDGING_HEADER = "TravelTranslator/TravelTranslator-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -434,7 +447,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.theluxenomad.freeofflinetranslator;
-				PRODUCT_NAME = NomadTranslator;
+				PRODUCT_NAME = "NomadTranslator";
 				SWIFT_OBJC_BRIDGING_HEADER = "TravelTranslator/TravelTranslator-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

@@ -44,7 +44,9 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      "expo-asset",
       "expo-image-picker",
+      "./plugins/withWhisperModel",
       [
         "expo-splash-screen",
         {

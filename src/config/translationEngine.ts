@@ -1,14 +1,11 @@
 // Which translation backend the app uses.
 //
-//   'llama' — the shipping engine: one 1.14 GB Qwen3-1.7B GGUF pack, offline LLM,
-//             preserves tone/slang, supports all 33 languages incl. Burmese/Khmer/
-//             Lao/Nepali/Sinhala/Cantonese.
-//   'mlkit' — experimental: Google ML Kit on-device NMT. Downloads only the language
-//             packs the user needs (~30 MB each) instead of one huge file. More literal
-//             translations, and 6 languages are unsupported (see mlkitLanguages.ts).
+// The app runs on 'mlkit' — Google ML Kit on-device NMT, downloading only the per-language
+// packs the user needs (~30 MB each). 60 of the 66 languages in the picker translate; the
+// 6 in MLKIT_UNSUPPORTED_CODES show a "Soon" badge.
 //
-// This whole branch (feat/mlkit-translate) exists to A/B this switch. Flip the constant
-// and rebuild to compare download friction, quality, and speed against llama.
+// The legacy 'llama' engine (1.14 GB Qwen3 GGUF) has been removed; the type value is kept
+// only so the block-batch code can branch on the engine.
 export type TranslationEngine = 'llama' | 'mlkit';
 
 export const TRANSLATION_ENGINE: TranslationEngine = 'mlkit';
