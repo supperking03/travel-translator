@@ -11,15 +11,12 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useNavigation } from 'expo-router';
+import { useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useStore } from '@/store/useStore';
-import { useLlama } from '@/hooks/useLlama';
 import { useWhisper } from '@/hooks/useWhisper';
-import { getModelFileSizeMB, deleteModel } from '@/utils/modelManager';
 import { getWhisperModelSizeMB, deleteWhisperModel } from '@/utils/whisperModelManager';
-import { MODEL_SIZE_MB } from '@/constants/model';
 import { WHISPER_MODEL_SIZE_MB } from '@/constants/whisperModel';
 import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem';
 import { useI18n } from '@/i18n/useI18n';
@@ -252,33 +249,22 @@ export default function SettingsScreen() {
   const isDark = useDSIsDark();
   const t      = useI18n();
   const nav    = useNavigation();
-  const params = useLocalSearchParams<{ focus?: string }>();
 
   const {
-    modelStatus, downloadProgress,
     whisperModelStatus, whisperDownloadProgress,
     appLanguage, setAppLanguage,
     themePreference, setThemePreference,
   } = useStore();
-  const { downloadAndLoad, cancelDownload, releaseModel } = useLlama();
   const whisper = useWhisper();
 
-  const [savedSizeMB, setSavedSizeMB] = useState<number | null>(null);
   const [whisperSavedSizeMB, setWhisperSavedSizeMB] = useState<number | null>(null);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
 
   useEffect(() => { trackScreen('settings'); }, []);
 
-  // Fire "download success" only on the transition INTO ready — seed the refs with the
+  // Fire "download success" only on the transition INTO ready — seed the ref with the
   // current status so a screen open while a pack is already installed doesn't re-fire.
-  const prevModelStatus   = useRef(modelStatus);
   const prevWhisperStatus = useRef(whisperModelStatus);
-  useEffect(() => {
-    if (modelStatus === 'ready' && prevModelStatus.current !== 'ready') {
-      track('model_download_success', { pack: 'translation' });
-    }
-    prevModelStatus.current = modelStatus;
-  }, [modelStatus]);
   useEffect(() => {
     if (whisperModelStatus === 'ready' && prevWhisperStatus.current !== 'ready') {
       track('model_download_success', { pack: 'voice' });
@@ -292,25 +278,10 @@ export default function SettingsScreen() {
   }, [t.sTitle, nav]);
 
   useEffect(() => {
-    getModelFileSizeMB().then(setSavedSizeMB);
-  }, [modelStatus]);
-
-  useEffect(() => {
     getWhisperModelSizeMB().then(setWhisperSavedSizeMB);
   }, [whisperModelStatus]);
 
-  const isDownloading = modelStatus === 'downloading';
-  const isLoading     = modelStatus === 'loading';
-  const isReady       = modelStatus === 'ready';
-  const hasError      = modelStatus === 'error';
-  const notDownloaded = modelStatus === 'not_downloaded';
-  const shouldHighlightDownload = params.focus === 'download' || notDownloaded || hasError;
-  const canShowAppLanguage = isReady || savedSizeMB !== null;
   const currentUiLanguage = UI_LANGUAGES.find((lang) => lang.code === appLanguage) ?? UI_LANGUAGES[0];
-  const packSubtitle =
-    shouldHighlightDownload && !isReady && !isDownloading && !isLoading
-      ? (t.sDownloadPackBenefitTitle ?? 'Translate offline after one download')
-      : t.sPackSub;
 
   const whisperIsDownloading = whisperModelStatus === 'downloading';
   const whisperIsLoading     = whisperModelStatus === 'loading';
@@ -324,57 +295,6 @@ export default function SettingsScreen() {
       Alert.alert('Could not open link', url);
     }
   };
-
-  const handleDownload = () =>
-    Alert.alert(
-      t.sDownloadPack,
-      `~${MODEL_SIZE_MB} MB. ${t.sDownloadPackDesc.split('·')[1]?.trim() ?? ''}`,
-      [
-        { text: t.aCancel, style: 'cancel' },
-        {
-          text: t.aDownload,
-          onPress: () => {
-            track('model_download_start', { pack: 'translation' });
-            downloadAndLoad();
-          },
-        },
-      ]
-    );
-
-  const handleRedownload = () =>
-    Alert.alert(
-      t.sRedownload,
-      `~${MODEL_SIZE_MB} MB`,
-      [
-        { text: t.aCancel, style: 'cancel' },
-        {
-          text: t.aDownload,
-          onPress: async () => {
-            await releaseModel();
-            await deleteModel();
-            downloadAndLoad();
-          },
-        },
-      ]
-    );
-
-  const handleDelete = () =>
-    Alert.alert(
-      t.sDeletePack,
-      t.sDeletePackDesc,
-      [
-        { text: t.aCancel, style: 'cancel' },
-        {
-          text: t.aDelete,
-          style: 'destructive',
-          onPress: async () => {
-            await releaseModel();
-            await deleteModel();
-            setSavedSizeMB(null);
-          },
-        },
-      ]
-    );
 
   const handleWhisperDownload = () =>
     Alert.alert(
@@ -426,88 +346,6 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-
-        <PackStatusCard
-          isReady={isReady}
-          isDownloading={isDownloading}
-          isLoading={isLoading}
-          downloadProgress={downloadProgress}
-          isDark={isDark}
-          colors={C}
-          title={t.sPackTitle}
-          subtitle={packSubtitle}
-          sizeMB={MODEL_SIZE_MB}
-        >
-          {shouldHighlightDownload && !isReady && !isDownloading && !isLoading && (
-            <View style={styles.primaryBlock}>
-              <PrimaryPackAction
-                label={t.sDownloadPack}
-                onPress={handleDownload}
-                colors={C}
-                isDark={isDark}
-              />
-            </View>
-          )}
-
-          {hasError && (
-            <View style={[styles.errorCard, { backgroundColor: C.dangerSoft, borderColor: `${C.danger}35` }]}>
-              <View style={[styles.errorIcon, { backgroundColor: `${C.danger}18` }]}>
-                <Ionicons name="alert-circle-outline" size={20} color={C.danger} />
-              </View>
-              <View style={styles.errorText}>
-                <Text style={[styles.errorTitle, { color: C.danger }]}>{t.sErrorTitle}</Text>
-                <Text style={[styles.errorDesc, { color: C.textSecondary }]}>{t.sErrorDesc}</Text>
-              </View>
-            </View>
-          )}
-
-          <View style={styles.rowGroup}>
-            {isDownloading && (
-              <ActionRow
-                icon="close-circle-outline"
-                label={t.sCancelDownload}
-                variant="danger"
-                onPress={cancelDownload}
-                isDark={isDark}
-                colors={C}
-              />
-            )}
-
-            {isReady && !isDownloading && (
-              <ActionRow
-                icon="refresh-outline"
-                label={t.sCheckUpdates}
-                description={t.sCheckUpdatesDesc}
-                onPress={() => Alert.alert(t.sCheckUpdates, t.sStatusReady)}
-                isDark={isDark}
-                colors={C}
-              />
-            )}
-
-            {(isReady || savedSizeMB !== null) && !isDownloading && !isLoading && (
-              <ActionRow
-                icon="arrow-down-circle-outline"
-                label={t.sRedownload}
-                description={t.sRedownloadDesc}
-                onPress={handleRedownload}
-                isDark={isDark}
-                colors={C}
-              />
-            )}
-
-            {(isReady || savedSizeMB !== null) && !isDownloading && !isLoading && (
-              <ActionRow
-                icon="trash-outline"
-                label={t.sDeletePack}
-                description={t.sDeletePackDesc}
-                variant="danger"
-                onPress={handleDelete}
-                isDark={isDark}
-                colors={C}
-              />
-            )}
-          </View>
-        </PackStatusCard>
 
         {/* ── Voice Recognition (Whisper) ──────────────────────────────── */}
         <PackStatusCard
@@ -569,7 +407,7 @@ export default function SettingsScreen() {
           </View>
         </PackStatusCard>
 
-        {canShowAppLanguage && (
+        {(
           <ActionRow
             icon="globe-outline"
             label={t.sAppLanguage ?? 'App Language'}
@@ -580,7 +418,7 @@ export default function SettingsScreen() {
           />
         )}
 
-        {canShowAppLanguage && (
+        {(
           <ThemePickerRow
             value={themePreference}
             onChange={setThemePreference}

@@ -8,10 +8,13 @@ import {
   TextInput,
   StyleSheet,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LANGUAGES, Language, getLanguageByCode } from '@/constants/languages';
+import { isMlkitSupported } from '@/constants/mlkitLanguages';
 import { DS, useDSColors, useDSIsDark } from '@/constants/designSystem';
+import { useI18n } from '@/i18n/useI18n';
 
 interface Props {
   selectedCode: string;
@@ -23,6 +26,7 @@ interface Props {
 export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Props) {
   const C      = useDSColors();
   const isDark = useDSIsDark();
+  const t      = useI18n();
   const [visible, setVisible] = useState(false);
   const [search, setSearch] = useState('');
   const isIOS = Platform.OS === 'ios';
@@ -36,6 +40,13 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
   );
 
   const handleSelect = (lang: Language) => {
+    if (!isMlkitSupported(lang.code)) {
+      Alert.alert(
+        t.mLangUnsupportedTitle ?? 'Not supported yet',
+        (t.mLangUnsupportedBody ?? "{lang} isn't available for offline translation yet.").replace('{lang}', lang.name),
+      );
+      return;
+    }
     onSelect(lang.code);
     setVisible(false);
     setSearch('');
@@ -142,12 +153,14 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
               showsVerticalScrollIndicator={false}
               renderItem={({ item }) => {
                 const isSelected = item.code === selectedCode;
+                const supported  = isMlkitSupported(item.code);
                 return (
                   <TouchableOpacity
                     style={[
                       styles.langRow,
                       { borderBottomColor: C.border },
                       isSelected && { backgroundColor: C.accentSoft },
+                      !supported && { opacity: 0.45 },
                     ]}
                     onPress={() => handleSelect(item)}
                     activeOpacity={0.65}
@@ -163,9 +176,13 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
                       </Text>
                       <Text style={[styles.itemNative, { color: C.textMuted }]}>{item.nativeName}</Text>
                     </View>
-                    {isSelected && (
+                    {!supported ? (
+                      <View style={[styles.soonBadge, { borderColor: C.border, backgroundColor: C.surface }]}>
+                        <Text style={[styles.soonText, { color: C.textMuted }]}>{t.mSoon ?? 'Soon'}</Text>
+                      </View>
+                    ) : isSelected ? (
                       <Ionicons name="checkmark-circle" size={20} color={C.primary} />
-                    )}
+                    ) : null}
                   </TouchableOpacity>
                 );
               }}
@@ -275,4 +292,11 @@ const styles = StyleSheet.create({
   itemTextBlock: { flex: 1 },
   itemName:      { ...DS.type.subhead, fontWeight: '500' },
   itemNative:    { ...DS.type.caption1, marginTop: 2 },
+  soonBadge: {
+    paddingHorizontal: DS.space.sm,
+    paddingVertical: 3,
+    borderRadius: DS.radius.full,
+    borderWidth: 1,
+  },
+  soonText: { ...DS.type.caption2, fontWeight: '700', textTransform: 'uppercase' },
 });

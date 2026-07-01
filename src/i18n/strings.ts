@@ -26,6 +26,14 @@ export type AppStrings = {
   mCopy: string;
   mCopied: string;
   mLoadingSub: string;
+  // ML Kit engine — language-pack download / offline / unsupported ({pack} and {lang} are interpolated)
+  mDownloadingPack?: string;
+  mDownloadingPackSub?: string;
+  mOfflineTitle?: string;
+  mOfflineBody?: string;
+  mLangUnsupportedTitle?: string;
+  mLangUnsupportedBody?: string;
+  mSoon?: string;
   mPhotoLibrary?: string;
   mTakePhoto?: string;
   mChooseFile?: string;
@@ -98,6 +106,13 @@ export type AppStrings = {
 };
 
 const en: AppStrings = {
+  mDownloadingPack:      'Downloading {pack} pack…',
+  mDownloadingPackSub:   'First time only · downloads once (~30 MB), then works offline',
+  mOfflineTitle:         'No Internet',
+  mOfflineBody:          'The {pack} pack needs a one-time download (~30 MB). Go online once to download it, then translate offline anytime.',
+  mLangUnsupportedTitle: 'Not supported yet',
+  mLangUnsupportedBody:  "{lang} isn't available for offline translation yet. We're working on adding it.",
+  mSoon:                 'Soon',
   obHeadline:       'What\'s your native language?',
   obSub:            'Choose your mother tongue — we\'ll display the app in this language.',
   obContinue:       'Continue',
@@ -191,6 +206,13 @@ const en: AppStrings = {
 };
 
 const vi: AppStrings = {
+  mDownloadingPack:      'Đang tải gói {pack}…',
+  mDownloadingPackSub:   'Chỉ lần đầu · tải một lần (~30 MB), sau đó dùng offline',
+  mOfflineTitle:         'Không có mạng',
+  mOfflineBody:          'Gói {pack} cần tải một lần (~30 MB). Hãy kết nối mạng một lần để tải, sau đó bạn có thể dịch offline bất cứ lúc nào.',
+  mLangUnsupportedTitle: 'Chưa hỗ trợ',
+  mLangUnsupportedBody:  '{lang} chưa hỗ trợ dịch offline. Chúng tôi đang bổ sung.',
+  mSoon:                 'Sắp có',
   obHeadline:       'Ngôn ngữ mẹ đẻ của bạn là gì?',
   obSub:            'Chọn tiếng mẹ đẻ — chúng tôi sẽ hiển thị app bằng ngôn ngữ này.',
   obContinue:       'Tiếp tục',
@@ -284,6 +306,13 @@ const vi: AppStrings = {
 };
 
 const es: AppStrings = {
+  mDownloadingPack:      'Descargando paquete {pack}…',
+  mDownloadingPackSub:   'Solo la primera vez · se descarga una vez (~30 MB), luego funciona sin conexión',
+  mOfflineTitle:         'Sin conexión',
+  mOfflineBody:          'El paquete {pack} necesita una descarga única (~30 MB). Conéctate a internet una vez para descargarlo y luego traduce sin conexión cuando quieras.',
+  mLangUnsupportedTitle: 'Aún no disponible',
+  mLangUnsupportedBody:  '{lang} aún no está disponible para traducción sin conexión.',
+  mSoon:                 'Pronto',
   obHeadline:       '¿Cuál es tu idioma nativo?',
   obSub:            'Elige tu lengua materna — mostraremos la app en ese idioma.',
   obContinue:       'Continuar',
@@ -351,6 +380,13 @@ const es: AppStrings = {
 };
 
 const fr: AppStrings = {
+  mDownloadingPack:      'Téléchargement du pack {pack}…',
+  mDownloadingPackSub:   'Première fois seulement · téléchargé une fois (~30 Mo), puis hors ligne',
+  mOfflineTitle:         'Pas de connexion',
+  mOfflineBody:          'Le pack {pack} nécessite un téléchargement unique (~30 Mo). Connectez-vous une fois pour le télécharger, puis traduisez hors ligne à tout moment.',
+  mLangUnsupportedTitle: 'Pas encore pris en charge',
+  mLangUnsupportedBody:  "{lang} n'est pas encore disponible pour la traduction hors ligne.",
+  mSoon:                 'Bientôt',
   obHeadline:       'Quelle est votre langue maternelle ?',
   obSub:            'Choisissez votre langue maternelle — l\'app s\'affichera dans cette langue.',
   obContinue:       'Continuer',
@@ -418,6 +454,13 @@ const fr: AppStrings = {
 };
 
 const de: AppStrings = {
+  mDownloadingPack:      '{pack}-Paket wird geladen…',
+  mDownloadingPackSub:   'Nur beim ersten Mal · einmaliger Download (~30 MB), danach offline',
+  mOfflineTitle:         'Keine Verbindung',
+  mOfflineBody:          'Das {pack}-Paket muss einmalig heruntergeladen werden (~30 MB). Gehe einmal online, um es zu laden, danach kannst du jederzeit offline übersetzen.',
+  mLangUnsupportedTitle: 'Noch nicht unterstützt',
+  mLangUnsupportedBody:  '{lang} ist noch nicht für die Offline-Übersetzung verfügbar.',
+  mSoon:                 'Bald',
   obHeadline:       'Was ist Ihre Muttersprache?',
   obSub:            'Wählen Sie Ihre Muttersprache — die App wird in dieser Sprache angezeigt.',
   obContinue:       'Weiter',
@@ -485,6 +528,13 @@ const de: AppStrings = {
 };
 
 const it: AppStrings = {
+  mDownloadingPack:      'Download del pacchetto {pack}…',
+  mDownloadingPackSub:   'Solo la prima volta · download una tantum (~30 MB), poi offline',
+  mOfflineTitle:         'Nessuna connessione',
+  mOfflineBody:          'Il pacchetto {pack} richiede un download una tantum (~30 MB). Connettiti a internet una volta per scaricarlo, poi traduci offline quando vuoi.',
+  mLangUnsupportedTitle: 'Non ancora supportato',
+  mLangUnsupportedBody:  '{lang} non è ancora disponibile per la traduzione offline.',
+  mSoon:                 'Presto',
   obHeadline:       'Qual è la tua lingua madre?',
   obSub:            'Scegli la tua lingua madre — l\'app verrà mostrata in quella lingua.',
   obContinue:       'Continua',
@@ -552,6 +602,13 @@ const it: AppStrings = {
 };
 
 const pt: AppStrings = {
+  mDownloadingPack:      'Baixando pacote {pack}…',
+  mDownloadingPackSub:   'Só na primeira vez · baixa uma vez (~30 MB), depois funciona offline',
+  mOfflineTitle:         'Sem internet',
+  mOfflineBody:          'O pacote {pack} precisa de um download único (~30 MB). Conecte-se à internet uma vez para baixá-lo e depois traduza offline quando quiser.',
+  mLangUnsupportedTitle: 'Ainda não disponível',
+  mLangUnsupportedBody:  '{lang} ainda não está disponível para tradução offline.',
+  mSoon:                 'Em breve',
   obHeadline:       'Qual é o seu idioma nativo?',
   obSub:            'Escolha sua língua materna — o app será exibido nesse idioma.',
   obContinue:       'Continuar',
@@ -619,6 +676,13 @@ const pt: AppStrings = {
 };
 
 const ja: AppStrings = {
+  mDownloadingPack:      '{pack} パックをダウンロード中…',
+  mDownloadingPackSub:   '初回のみ · 一度だけダウンロード（約30MB）、以降はオフラインで利用可能',
+  mOfflineTitle:         'インターネット未接続',
+  mOfflineBody:          '{pack} パックは初回のみダウンロードが必要です（約30MB）。一度だけオンラインにしてダウンロードすれば、以降はいつでもオフラインで翻訳できます。',
+  mLangUnsupportedTitle: 'まだ対応していません',
+  mLangUnsupportedBody:  '{lang} はまだオフライン翻訳に対応していません。',
+  mSoon:                 '近日対応',
   obHeadline:       'あなたの母国語は何ですか？',
   obSub:            '母国語を選択してください — アプリがその言語で表示されます。',
   obContinue:       '続ける',
@@ -686,6 +750,13 @@ const ja: AppStrings = {
 };
 
 const ko: AppStrings = {
+  mDownloadingPack:      '{pack} 팩 다운로드 중…',
+  mDownloadingPackSub:   '최초 1회만 · 한 번만 다운로드(~30MB), 이후 오프라인 사용',
+  mOfflineTitle:         '인터넷 없음',
+  mOfflineBody:          '{pack} 팩은 최초 1회 다운로드가 필요합니다(~30MB). 한 번만 인터넷에 연결해 다운로드하면 이후에는 언제든 오프라인으로 번역할 수 있습니다.',
+  mLangUnsupportedTitle: '아직 지원되지 않음',
+  mLangUnsupportedBody:  '{lang}은(는) 아직 오프라인 번역을 지원하지 않습니다.',
+  mSoon:                 '곧 지원',
   obHeadline:       '모국어가 무엇인가요?',
   obSub:            '모국어를 선택하세요 — 앱이 해당 언어로 표시됩니다.',
   obContinue:       '계속',
@@ -753,6 +824,13 @@ const ko: AppStrings = {
 };
 
 const zh: AppStrings = {
+  mDownloadingPack:      '正在下载 {pack} 语言包…',
+  mDownloadingPackSub:   '仅首次 · 只需下载一次（约30MB），之后可离线使用',
+  mOfflineTitle:         '无网络连接',
+  mOfflineBody:          '{pack} 语言包需要下载一次（约30MB）。请联网一次进行下载，之后即可随时离线翻译。',
+  mLangUnsupportedTitle: '暂不支持',
+  mLangUnsupportedBody:  '{lang} 暂不支持离线翻译。',
+  mSoon:                 '即将支持',
   obHeadline:       '您的母语是什么？',
   obSub:            '选择您的母语 — 应用将以该语言显示。',
   obContinue:       '继续',
@@ -820,6 +898,13 @@ const zh: AppStrings = {
 };
 
 const ar: AppStrings = {
+  mDownloadingPack:      'جارٍ تنزيل حزمة {pack}…',
+  mDownloadingPackSub:   'المرة الأولى فقط · تنزيل لمرة واحدة (~30 ميجابايت)، ثم تعمل دون إنترنت',
+  mOfflineTitle:         'لا يوجد اتصال بالإنترنت',
+  mOfflineBody:          'تحتاج حزمة {pack} إلى تنزيل لمرة واحدة (~30 ميجابايت). اتصل بالإنترنت مرة واحدة لتنزيلها، ثم يمكنك الترجمة دون إنترنت في أي وقت.',
+  mLangUnsupportedTitle: 'غير مدعوم بعد',
+  mLangUnsupportedBody:  '{lang} غير متاحة للترجمة دون إنترنت بعد.',
+  mSoon:                 'قريبًا',
   obHeadline:       'ما هي لغتك الأم؟',
   obSub:            'اختر لغتك الأم — سيعرض التطبيق بهذه اللغة.',
   obContinue:       'متابعة',
@@ -887,6 +972,13 @@ const ar: AppStrings = {
 };
 
 const ru: AppStrings = {
+  mDownloadingPack:      'Загрузка пакета {pack}…',
+  mDownloadingPackSub:   'Только в первый раз · разовая загрузка (~30 МБ), затем офлайн',
+  mOfflineTitle:         'Нет интернета',
+  mOfflineBody:          'Пакет {pack} нужно один раз загрузить (~30 МБ). Подключитесь к интернету один раз, чтобы скачать его, — потом можно переводить офлайн в любое время.',
+  mLangUnsupportedTitle: 'Пока не поддерживается',
+  mLangUnsupportedBody:  '{lang} пока недоступен для офлайн-перевода.',
+  mSoon:                 'Скоро',
   obHeadline:       'Какой у вас родной язык?',
   obSub:            'Выберите родной язык — приложение будет отображаться на нём.',
   obContinue:       'Продолжить',
@@ -954,6 +1046,13 @@ const ru: AppStrings = {
 };
 
 const hi: AppStrings = {
+  mDownloadingPack:      '{pack} पैक डाउनलोड हो रहा है…',
+  mDownloadingPackSub:   'केवल पहली बार · एक बार डाउनलोड (~30 MB), फिर ऑफ़लाइन',
+  mOfflineTitle:         'इंटरनेट नहीं है',
+  mOfflineBody:          '{pack} पैक को एक बार डाउनलोड करना होगा (~30 MB)। इसे डाउनलोड करने के लिए एक बार इंटरनेट से कनेक्ट करें, फिर आप कभी भी ऑफ़लाइन अनुवाद कर सकते हैं।',
+  mLangUnsupportedTitle: 'अभी समर्थित नहीं',
+  mLangUnsupportedBody:  '{lang} अभी ऑफ़लाइन अनुवाद के लिए उपलब्ध नहीं है।',
+  mSoon:                 'जल्द',
   obHeadline:       'आपकी मातृभाषा क्या है?',
   obSub:            'अपनी मातृभाषा चुनें — ऐप इस भाषा में दिखाया जाएगा।',
   obContinue:       'जारी रखें',
@@ -1021,6 +1120,13 @@ const hi: AppStrings = {
 };
 
 const th: AppStrings = {
+  mDownloadingPack:      'กำลังดาวน์โหลดชุดภาษา {pack}…',
+  mDownloadingPackSub:   'ครั้งแรกเท่านั้น · ดาวน์โหลดครั้งเดียว (~30 MB) จากนั้นใช้แบบออฟไลน์ได้',
+  mOfflineTitle:         'ไม่มีอินเทอร์เน็ต',
+  mOfflineBody:          'ชุดภาษา {pack} ต้องดาวน์โหลดครั้งเดียว (~30 MB) เชื่อมต่ออินเทอร์เน็ตสักครั้งเพื่อดาวน์โหลด จากนั้นแปลแบบออฟไลน์ได้ทุกเมื่อ',
+  mLangUnsupportedTitle: 'ยังไม่รองรับ',
+  mLangUnsupportedBody:  '{lang} ยังไม่รองรับการแปลแบบออฟไลน์',
+  mSoon:                 'เร็ว ๆ นี้',
   obHeadline:       'ภาษาแม่ของคุณคืออะไร?',
   obSub:            'เลือกภาษาแม่ของคุณ — แอปจะแสดงในภาษานั้น',
   obContinue:       'ต่อไป',
@@ -1088,6 +1194,13 @@ const th: AppStrings = {
 };
 
 const id: AppStrings = {
+  mDownloadingPack:      'Mengunduh paket {pack}…',
+  mDownloadingPackSub:   'Hanya pertama kali · unduh sekali (~30 MB), lalu bisa offline',
+  mOfflineTitle:         'Tidak ada internet',
+  mOfflineBody:          'Paket {pack} perlu diunduh sekali (~30 MB). Sambungkan ke internet sekali untuk mengunduhnya, lalu terjemahkan offline kapan saja.',
+  mLangUnsupportedTitle: 'Belum didukung',
+  mLangUnsupportedBody:  '{lang} belum tersedia untuk terjemahan offline.',
+  mSoon:                 'Segera',
   obHeadline:       'Apa bahasa ibu Anda?',
   obSub:            'Pilih bahasa ibu Anda — aplikasi akan ditampilkan dalam bahasa tersebut.',
   obContinue:       'Lanjutkan',
@@ -1155,6 +1268,13 @@ const id: AppStrings = {
 };
 
 const nl: AppStrings = {
+  mDownloadingPack:      '{pack}-pakket downloaden…',
+  mDownloadingPackSub:   'Alleen de eerste keer · eenmalig downloaden (~30 MB), daarna offline',
+  mOfflineTitle:         'Geen internet',
+  mOfflineBody:          'Het {pack}-pakket moet eenmalig worden gedownload (~30 MB). Ga één keer online om het te downloaden, daarna kun je altijd offline vertalen.',
+  mLangUnsupportedTitle: 'Nog niet ondersteund',
+  mLangUnsupportedBody:  '{lang} is nog niet beschikbaar voor offline vertaling.',
+  mSoon:                 'Binnenkort',
   obHeadline:       'Wat is je moedertaal?',
   obSub:            'Kies je moedertaal — de app wordt in die taal weergegeven.',
   obContinue:       'Doorgaan',

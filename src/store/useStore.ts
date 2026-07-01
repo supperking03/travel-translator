@@ -32,13 +32,10 @@ interface TranslatorState {
   isTranslating: boolean;
   setIsTranslating: (v: boolean) => void;
 
-  // Translation model state (Llama)
-  modelStatus: ModelStatus;
-  downloadProgress: number;
-  modelError: string | null;
-  setModelStatus: (status: ModelStatus) => void;
-  setDownloadProgress: (progress: number) => void;
-  setModelError: (error: string | null) => void;
+  // ML Kit per-language pack download (transient, not persisted)
+  mlkitPackStatus: 'idle' | 'downloading' | 'error';
+  mlkitPackLabel: string;
+  setMlkitPack: (status: 'idle' | 'downloading' | 'error', label?: string) => void;
 
   // Voice recognition model state (Whisper)
   whisperModelStatus: ModelStatus;
@@ -97,12 +94,9 @@ export const useStore = create<TranslatorState>()(
       isTranslating: false,
       setIsTranslating: (v) => set({ isTranslating: v }),
 
-      modelStatus: 'not_downloaded',
-      downloadProgress: 0,
-      modelError: null,
-      setModelStatus: (status) => set({ modelStatus: status }),
-      setDownloadProgress: (progress) => set({ downloadProgress: progress }),
-      setModelError: (error) => set({ modelError: error }),
+      mlkitPackStatus: 'idle',
+      mlkitPackLabel: '',
+      setMlkitPack: (status, label = '') => set({ mlkitPackStatus: status, mlkitPackLabel: label }),
 
       whisperModelStatus: 'not_downloaded',
       whisperDownloadProgress: 0,

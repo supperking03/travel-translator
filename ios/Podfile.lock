@@ -115,10 +115,83 @@ PODS:
     - ExpoModulesCore
   - ExpoSymbols (55.0.7):
     - ExpoModulesCore
+  - fast-mlkit-translate-text (1.0.3):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - GoogleMLKit/LanguageID (~> 8.0)
+    - GoogleMLKit/Translate (~> 8.0)
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
   - fast_float (8.0.0)
   - FBLazyVector (0.83.6)
   - fmt (12.1.0)
   - glog (0.3.5)
+  - GoogleDataTransport (10.1.0):
+    - nanopb (~> 3.30910.0)
+    - PromisesObjC (~> 2.4)
+  - GoogleMLKit/LanguageID (8.0.0):
+    - GoogleMLKit/MLKitCore
+    - MLKitLanguageID (~> 8.0.0)
+  - GoogleMLKit/MLKitCore (8.0.0):
+    - MLKitCommon (~> 13.0.0)
+  - GoogleMLKit/TextRecognition (8.0.0):
+    - GoogleMLKit/MLKitCore
+    - MLKitTextRecognition (~> 6.0.0)
+  - GoogleMLKit/TextRecognitionChinese (8.0.0):
+    - GoogleMLKit/MLKitCore
+    - MLKitTextRecognitionChinese (~> 5.0.0)
+  - GoogleMLKit/TextRecognitionDevanagari (8.0.0):
+    - GoogleMLKit/MLKitCore
+    - MLKitTextRecognitionDevanagari (~> 5.0.0)
+  - GoogleMLKit/TextRecognitionJapanese (8.0.0):
+    - GoogleMLKit/MLKitCore
+    - MLKitTextRecognitionJapanese (~> 5.0.0)
+  - GoogleMLKit/TextRecognitionKorean (8.0.0):
+    - GoogleMLKit/MLKitCore
+    - MLKitTextRecognitionKorean (~> 5.0.0)
+  - GoogleMLKit/Translate (8.0.0):
+    - GoogleMLKit/MLKitCore
+    - MLKitTranslate (~> 7.0.0)
+  - GoogleToolboxForMac/Defines (4.2.1)
+  - GoogleToolboxForMac/Logger (4.2.1):
+    - GoogleToolboxForMac/Defines (= 4.2.1)
+  - "GoogleToolboxForMac/NSData+zlib (4.2.1)":
+    - GoogleToolboxForMac/Defines (= 4.2.1)
+  - GoogleToolboxForMac/StringEncoding (4.2.1):
+    - GoogleToolboxForMac/Defines (= 4.2.1)
+  - GoogleUtilities/Environment (8.1.1):
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Logger (8.1.1):
+    - GoogleUtilities/Environment
+    - GoogleUtilities/Privacy
+  - GoogleUtilities/Privacy (8.1.1)
+  - GoogleUtilities/UserDefaults (8.1.1):
+    - GoogleUtilities/Logger
+    - GoogleUtilities/Privacy
+  - GTMSessionFetcher/Core (3.5.0)
   - hermes-engine (0.14.1):
     - hermes-engine/Pre-built (= 0.14.1)
   - hermes-engine/Pre-built (0.14.1)
@@ -139,36 +212,60 @@ PODS:
   - libwebp/sharpyuv (1.5.0)
   - libwebp/webp (1.5.0):
     - libwebp/sharpyuv
-  - llama-rn (0.11.5):
-    - boost
-    - DoubleConversion
-    - fast_float
-    - fmt
-    - glog
-    - hermes-engine
-    - RCT-Folly
-    - RCT-Folly/Fabric
-    - RCTRequired
-    - RCTTypeSafety
-    - React
-    - React-callinvoker
-    - React-Core
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - React-jsi
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-renderercss
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - SocketRocket
-    - Yoga
+  - MLImage (1.0.0-beta7)
+  - MLKitCommon (13.0.0):
+    - GoogleDataTransport (~> 10.0)
+    - GoogleToolboxForMac/Logger (< 5.0, >= 4.2.1)
+    - "GoogleToolboxForMac/NSData+zlib (< 5.0, >= 4.2.1)"
+    - GoogleUtilities/Logger (~> 8.0)
+    - GoogleUtilities/UserDefaults (~> 8.0)
+    - GTMSessionFetcher/Core (< 4.0, >= 3.3.2)
+  - MLKitLanguageID (8.0.0):
+    - MLKitNaturalLanguage (~> 9.0)
+  - MLKitNaturalLanguage (9.0.0):
+    - GoogleToolboxForMac/Logger (< 5.0, >= 4.2.1)
+    - "GoogleToolboxForMac/NSData+zlib (< 5.0, >= 4.2.1)"
+    - GoogleToolboxForMac/StringEncoding (< 5.0, >= 4.2.1)
+    - GTMSessionFetcher/Core (< 4.0, >= 3.3.2)
+    - MLKitCommon (~> 13.0)
+  - MLKitTextRecognition (6.0.0):
+    - MLKitCommon (~> 13.0)
+    - MLKitTextRecognitionCommon (= 5.0.0)
+    - MLKitVision (~> 9.0)
+  - MLKitTextRecognitionChinese (5.0.0):
+    - MLKitCommon (~> 13.0)
+    - MLKitTextRecognitionCommon (= 5.0.0)
+    - MLKitVision (~> 9.0)
+  - MLKitTextRecognitionCommon (5.0.0):
+    - MLKitCommon (~> 13.0)
+    - MLKitVision (~> 9.0)
+  - MLKitTextRecognitionDevanagari (5.0.0):
+    - MLKitCommon (~> 13.0)
+    - MLKitTextRecognitionCommon (= 5.0.0)
+    - MLKitVision (~> 9.0)
+  - MLKitTextRecognitionJapanese (5.0.0):
+    - MLKitCommon (~> 13.0)
+    - MLKitTextRecognitionCommon (= 5.0.0)
+    - MLKitVision (~> 9.0)
+  - MLKitTextRecognitionKorean (5.0.0):
+    - MLKitCommon (~> 13.0)
+    - MLKitTextRecognitionCommon (= 5.0.0)
+    - MLKitVision (~> 9.0)
+  - MLKitTranslate (7.0.0):
+    - MLKitNaturalLanguage (~> 9.0)
+    - SSZipArchive (< 3.0, >= 2.5.5)
+  - MLKitVision (9.0.0):
+    - GoogleToolboxForMac/Logger (< 5.0, >= 4.2.1)
+    - "GoogleToolboxForMac/NSData+zlib (< 5.0, >= 4.2.1)"
+    - GTMSessionFetcher/Core (< 4.0, >= 3.3.2)
+    - MLImage (= 1.0.0-beta7)
+    - MLKitCommon (~> 13.0)
+  - nanopb (3.30910.0):
+    - nanopb/decode (= 3.30910.0)
+    - nanopb/encode (= 3.30910.0)
+  - nanopb/decode (3.30910.0)
+  - nanopb/encode (3.30910.0)
+  - PromisesObjC (2.4.1)
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -2754,6 +2851,13 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
+  - RNMLKitTextRecognition (2.0.0):
+    - GoogleMLKit/TextRecognition (= 8.0.0)
+    - GoogleMLKit/TextRecognitionChinese (= 8.0.0)
+    - GoogleMLKit/TextRecognitionDevanagari (= 8.0.0)
+    - GoogleMLKit/TextRecognitionJapanese (= 8.0.0)
+    - GoogleMLKit/TextRecognitionKorean (= 8.0.0)
+    - React
   - RNScreens (4.23.0):
     - boost
     - DoubleConversion
@@ -2882,6 +2986,7 @@ PODS:
     - libwebp (~> 1.0)
     - SDWebImage/Core (~> 5.17)
   - SocketRocket (0.7.1)
+  - SSZipArchive (2.6.0)
   - whisper-rn (0.5.5):
     - boost
     - DoubleConversion
@@ -2945,12 +3050,12 @@ DEPENDENCIES:
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
   - ExpoStoreReview (from `../node_modules/expo-store-review/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
+  - fast-mlkit-translate-text (from `../node_modules/fast-mlkit-translate-text`)
   - fast_float (from `../node_modules/react-native/third-party-podspecs/fast_float.podspec`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - fmt (from `../node_modules/react-native/third-party-podspecs/fmt.podspec`)
   - glog (from `../node_modules/react-native/third-party-podspecs/glog.podspec`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
-  - llama-rn (from `../node_modules/llama.rn`)
   - RCT-Folly (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
   - RCTRequired (from `../node_modules/react-native/Libraries/Required`)
@@ -3024,6 +3129,7 @@ DEPENDENCIES:
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
+  - "RNMLKitTextRecognition (from `../node_modules/@react-native-ml-kit/text-recognition`)"
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNSVG (from `../node_modules/react-native-svg`)
   - SocketRocket (~> 0.7.1)
@@ -3032,14 +3138,34 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - GoogleDataTransport
+    - GoogleMLKit
+    - GoogleToolboxForMac
+    - GoogleUtilities
+    - GTMSessionFetcher
     - libavif
     - libdav1d
     - libwebp
+    - MLImage
+    - MLKitCommon
+    - MLKitLanguageID
+    - MLKitNaturalLanguage
+    - MLKitTextRecognition
+    - MLKitTextRecognitionChinese
+    - MLKitTextRecognitionCommon
+    - MLKitTextRecognitionDevanagari
+    - MLKitTextRecognitionJapanese
+    - MLKitTextRecognitionKorean
+    - MLKitTranslate
+    - MLKitVision
+    - nanopb
+    - PromisesObjC
     - SDWebImage
     - SDWebImageAVIFCoder
     - SDWebImageSVGCoder
     - SDWebImageWebPCoder
     - SocketRocket
+    - SSZipArchive
     - ZXingObjC
 
 EXTERNAL SOURCES:
@@ -3093,6 +3219,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-store-review/ios"
   ExpoSymbols:
     :path: "../node_modules/expo-symbols/ios"
+  fast-mlkit-translate-text:
+    :path: "../node_modules/fast-mlkit-translate-text"
   fast_float:
     :podspec: "../node_modules/react-native/third-party-podspecs/fast_float.podspec"
   FBLazyVector:
@@ -3104,8 +3232,6 @@ EXTERNAL SOURCES:
   hermes-engine:
     :podspec: "../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-v0.14.1
-  llama-rn:
-    :path: "../node_modules/llama.rn"
   RCT-Folly:
     :podspec: "../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec"
   RCTDeprecation:
@@ -3250,6 +3376,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/@react-native-async-storage/async-storage"
   RNGestureHandler:
     :path: "../node_modules/react-native-gesture-handler"
+  RNMLKitTextRecognition:
+    :path: "../node_modules/@react-native-ml-kit/text-recognition"
   RNScreens:
     :path: "../node_modules/react-native-screens"
   RNSVG:
@@ -3285,15 +3413,34 @@ SPEC CHECKSUMS:
   ExpoSplashScreen: 43517d54a0f90d381c80deda859aa6087e80884b
   ExpoStoreReview: 067788aa30f0460a59b681b2c850747de6abe5cb
   ExpoSymbols: 8b63e859ba013df1f2fc666f535fddb3d5270569
+  fast-mlkit-translate-text: d3c162b5f7d5d908300535d385eab60899af57ae
   fast_float: b32c788ed9c6a8c584d114d0047beda9664e7cc6
   FBLazyVector: 06b1c8278e6e1b31ef68e9e14c296b7872e79e48
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
+  GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
+  GoogleMLKit: ddd51d7dff36ff28defa69afedd9cdce684fd857
+  GoogleToolboxForMac: d1a2cbf009c453f4d6ded37c105e2f67a32206d8
+  GoogleUtilities: 4f2618a4a1e762a1ee134a1e2323bba9843e06da
+  GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
   hermes-engine: 3463d18911038185a5ebb4d796efd0e7d34c8430
   libavif: 5f8e715bea24debec477006f21ef9e95432e254d
   libdav1d: 23581a4d8ec811ff171ed5e2e05cd27bad64c39f
   libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
-  llama-rn: f138dcaf6d5409204578fccfe704f23a7d8a9c2b
+  MLImage: 2ab9c968e75f57911c16f4c9d9e8a8e9604a86a1
+  MLKitCommon: 26b779f072a182c1603d4c88a101c350cac837b1
+  MLKitLanguageID: ca609e2c8706b01d1123f5d8c65f1ed7d3e385f3
+  MLKitNaturalLanguage: 4c5580068109aaea85809981b8c4cb4675b2100f
+  MLKitTextRecognition: 072488cfd29f1726733378661881f88db74ba3dc
+  MLKitTextRecognitionChinese: 0e5335ca53ad9a36773fed1ef8b4abb177630fcd
+  MLKitTextRecognitionCommon: 228502b9dc61ea9cfb6199ebafef3baa842e2043
+  MLKitTextRecognitionDevanagari: 10086e73149989eb43f05b4a2f9b98c41ad403c4
+  MLKitTextRecognitionJapanese: 776fddee29ac10dc304fccea1588accc32f4640c
+  MLKitTextRecognitionKorean: dc1273aa2ef41f363b585d3dde1cf2de68c7c6d8
+  MLKitTranslate: ab71c9e4a67cc79756d4dae013e47edfca3b57cb
+  MLKitVision: fa8dea9012ac59497c79ddbe9ebf32051047ac4c
+  nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
+  PromisesObjC: 752c3227f599e3467650e47ea36f433eeb10c273
   RCT-Folly: b29feb752b08042c62badaef7d453f3bb5e6ae23
   RCTDeprecation: c5e70bcdbc24b9edbca24b96f3997319f01ba8fb
   RCTRequired: 7fbf6c9b97de59aab5c6a1ca5a5d91555d5ba403
@@ -3366,6 +3513,7 @@ SPEC CHECKSUMS:
   ReactCommon: e788387a0b387a927a2a5d041fab09472fe8dedc
   RNCAsyncStorage: 29f0230e1a25f36c20b05f65e2eb8958d6526e82
   RNGestureHandler: d7ebd5abfdf03ddebef995d2f828a9f07fca7990
+  RNMLKitTextRecognition: 2d7c3481b9dabc72f7e31c67025c28b2c8d653b0
   RNScreens: d35be2f0f06df7404d3914257beff7b15b3166fe
   RNSVG: 3405336c4507ee0bafb02b08058d57216daa2c50
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
@@ -3373,6 +3521,7 @@ SPEC CHECKSUMS:
   SDWebImageSVGCoder: 15a300a97ec1c8ac958f009c02220ac0402e936c
   SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
+  SSZipArchive: 8a6ee5677c8e304bebc109e39cf0da91ccef22ea
   whisper-rn: 7566faf9b7d78e39ab9fc634cb90fdee81177793
   Yoga: cf2a67aa1c8a225f0cb98a5f531d6f305d3f12e5
   ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5

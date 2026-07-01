@@ -29,7 +29,9 @@ import { AudioSessionIos } from 'whisper.rn';
 import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-view';
 
 import { useStore } from '@/store/useStore';
-import { useLlama } from '@/hooks/useLlama';
+import { useTranslator } from '@/hooks/useTranslator';
+import { TRANSLATION_ENGINE } from '@/config/translationEngine';
+import { MlkitOfflineError } from '@/utils/mlkitTranslate';
 import { useWhisper } from '@/hooks/useWhisper';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { DS, useDSColors, useDSIsDark, DSColors } from '@/constants/designSystem';
@@ -130,6 +132,21 @@ async function translateBlockBatch(
   targetLangCode: string,
   translate: (text: string, sourceLang: string, targetLang: string) => Promise<string>
 ): Promise<string[]> {
+  // ML Kit is an NMT engine, not an instruction-following LLM — the numbered-prompt
+  // batching below only works with llama. Translate each block's raw text on its own.
+  if (TRANSLATION_ENGINE === 'mlkit') {
+    const out: string[] = [];
+    for (const block of blocks) {
+      try {
+        const t = (await translate(block.text, 'auto', targetLangCode)).trim();
+        out.push(t || block.text);
+      } catch {
+        out.push(block.text); // unsupported language / failure → keep original
+      }
+    }
+    return out;
+  }
+
   const targetName = getLanguageByCode(targetLangCode)?.name ?? targetLangCode;
   const numbered = blocks.map((block, index) => `${index + 1}. ${block.text}`).join('\n');
   const prompt = `Translate each numbered item to ${targetName}. Reply only with the numbered translations, same format:\n${numbered}`;
@@ -509,7 +526,10 @@ export default function TranslatorScreen() {
     setIsTranslating, swapLanguages,
     addHistory,
     onboardingComplete,
+    mlkitPackStatus, mlkitPackLabel,
   } = useStore();
+
+  const isDownloadingPack = mlkitPackStatus === 'downloading';
 
   const outerScrollRef = useRef<ScrollView>(null);
   const cabinLangCodeRef = useRef<string | undefined>(undefined);
@@ -518,7 +538,7 @@ export default function TranslatorScreen() {
   const swapAngle = useRef(0);
   const swapAnim  = useRef(new Animated.Value(0)).current;
 
-  const { translate, isReady } = useLlama();
+  const { translate, isReady } = useTranslator();
   const whisper = useWhisper();
 
   const [isCabinMode, setIsCabinMode] = useState(false);
@@ -681,13 +701,19 @@ export default function TranslatorScreen() {
       // Happy path: let the result land, then maybe ask for a review.
       setTimeout(() => { void maybeAskForReview(); }, 800);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Translation failed';
-      Alert.alert('Translation Error', msg);
+      if (err instanceof MlkitOfflineError) {
+        Alert.alert(
+          t.mOfflineTitle ?? 'No Internet',
+          (t.mOfflineBody ?? err.message).replace('{pack}', err.pairLabel),
+        );
+      } else {
+        Alert.alert('Translation Error', err instanceof Error ? err.message : 'Translation failed');
+      }
     } finally {
       setIsTranslating(false);
     }
     setResultMode('text');
-  }, [isReady, translate, setIsTranslating, setTranslatedText, addHistory, router, clearImagePreview]);
+  }, [isReady, translate, setIsTranslating, setTranslatedText, addHistory, router, clearImagePreview, t]);
 
   const handleTranslate = useCallback(() => {
     void runTranslate(sourceText);
@@ -1158,11 +1184,17 @@ export default function TranslatorScreen() {
                 <View style={[styles.loadingCard, { backgroundColor: C.surface, borderColor: C.border }, DS.shadow.level2(isDark)]}>
                   <ActivityIndicator size="large" color={C.primary} />
                   <Text style={[styles.loadingTitle, { color: C.textPrimary }]}>
-                    {imagePhase === 'ocr' || isImageProcessing
+                    {isDownloadingPack
+                      ? (t.mDownloadingPack ?? 'Downloading {pack} pack…').replace('{pack}', mlkitPackLabel || 'language')
+                      : imagePhase === 'ocr' || isImageProcessing
                       ? (imagePhase === 'ocr' ? (t.mReadingText ?? 'Reading text from image…') : t.mTranslating)
                       : t.mTranslating}
                   </Text>
-                  <Text style={[styles.loadingSub, { color: C.textMuted }]}>{t.mLoadingSub}</Text>
+                  <Text style={[styles.loadingSub, { color: C.textMuted }]}>
+                    {isDownloadingPack
+                      ? (t.mDownloadingPackSub ?? 'First time only · downloads once (~30 MB), then works offline')
+                      : t.mLoadingSub}
+                  </Text>
                 </View>
               ) : imagePhase === 'error' ? (
                 <View style={[styles.loadingCard, { backgroundColor: C.surface, borderColor: C.danger + '35' }, DS.shadow.level2(isDark)]}>

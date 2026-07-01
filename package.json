@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@openspacelabs/react-native-zoomable-view": "^2.4.2",
@@ -15,6 +16,7 @@
     "@types/lodash": "^4.17.24",
     "buffer": "^6.0.3",
     "expo": "~55.0.0",
+    "expo-build-properties": "~55.0.15",
     "expo-camera": "~55.0.18",
     "expo-clipboard": "~55.0.0",
     "expo-document-picker": "~55.0.13",
@@ -26,8 +28,8 @@
     "expo-splash-screen": "~55.0.0",
     "expo-status-bar": "~55.0.0",
     "expo-store-review": "~55.0.14",
+    "fast-mlkit-translate-text": "^1.0.3",
     "jszip": "^3.10.1",
-    "llama.rn": "0.11.5",
     "lodash": "^4.18.1",
     "pako": "^2.1.0",
     "posthog-react-native": "^4.46.17",
@@ -45,6 +47,7 @@
     "@types/pako": "^2.0.4",
     "@types/react": "^19.1.0",
     "babel-plugin-module-resolver": "^5.0.3",
+    "patch-package": "^8.0.1",
     "typescript": "^5.3.3"
   }
 }

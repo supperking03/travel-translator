@@ -11,7 +11,10 @@ import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-vi
 
 import { DS, useDSColors, useDSIsDark } from '@/constants/designSystem';
 import { useStore } from '@/store/useStore';
-import { useLlama } from '@/hooks/useLlama';
+import { useTranslator } from '@/hooks/useTranslator';
+import { TRANSLATION_ENGINE } from '@/config/translationEngine';
+import { MlkitOfflineError } from '@/utils/mlkitTranslate';
+import { useI18n } from '@/i18n/useI18n';
 import { recognizeTextBlocksFromImage, TextBlock } from '@/utils/imageTextRecognition';
 import { getLanguageByCode } from '@/constants/languages';
 
@@ -58,6 +61,22 @@ async function batchTranslate(
 ): Promise<string[]> {
   if (blocks.length === 0) return [];
 
+  // ML Kit is an NMT engine, not an instruction-following LLM — the numbered-prompt
+  // batching below only works with llama. Translate each block's raw text on its own.
+  if (TRANSLATION_ENGINE === 'mlkit') {
+    const out: string[] = [];
+    for (const block of blocks) {
+      try {
+        const t = (await translate(block.text, 'auto', targetLangCode)).trim();
+        out.push(t || block.text);
+      } catch (e) {
+        if (e instanceof MlkitOfflineError) throw e; // offline → abort & tell the user
+        out.push(block.text); // unsupported language / other → keep original
+      }
+    }
+    return out;
+  }
+
   const targetName = getLanguageByCode(targetLangCode)?.name ?? targetLangCode;
   const batches = splitBlocksForTranslation(blocks);
   const combined: string[] = [];
@@ -93,10 +112,12 @@ export default function ImageTranslateScreen() {
   const { imageUri } = useLocalSearchParams<{ imageUri: string }>();
 
   const { sourceLang, targetLang, setSourceText, setTranslatedText } = useStore();
-  const { translate, isReady } = useLlama();
+  const { translate, isReady } = useTranslator();
+  const t = useI18n();
 
   const [phase, setPhase]   = useState<Phase>('ocr');
   const [error, setError]   = useState('');
+  const [errorTitle, setErrorTitle] = useState('Failed');
   const [blocks, setBlocks] = useState<TranslatedBlock[]>([]);
   const [dispW, setDispW]   = useState(SW);
   const [dispH, setDispH]   = useState(SW);
@@ -153,11 +174,17 @@ export default function ImageTranslateScreen() {
       setPhase('done');
     } catch (err) {
       if (!cancelled.current) {
-        setError(err instanceof Error ? err.message : 'Something went wrong');
+        if (err instanceof MlkitOfflineError) {
+          setErrorTitle(t.mOfflineTitle ?? 'No Internet');
+          setError((t.mOfflineBody ?? err.message).replace('{pack}', err.pairLabel));
+        } else {
+          setErrorTitle('Failed');
+          setError(err instanceof Error ? err.message : 'Something went wrong');
+        }
         setPhase('error');
       }
     }
-  }, [sourceLang, targetLang, translate, isReady, router]);
+  }, [sourceLang, targetLang, translate, isReady, router, t]);
 
   // ── Use extracted text in main translator ─────────────────────────────────
   const handleUseText = useCallback(() => {
@@ -192,7 +219,7 @@ export default function ImageTranslateScreen() {
       {phase === 'error' && (
         <View style={s.loadingWrap}>
           <Ionicons name="alert-circle-outline" size={48} color={C.danger} />
-          <Text style={[s.loadingTitle, { color: C.textPrimary }]}>Failed</Text>
+          <Text style={[s.loadingTitle, { color: C.textPrimary }]}>{errorTitle}</Text>
           <Text style={[s.loadingSub, { color: C.textMuted }]}>{error}</Text>
         </View>
       )}

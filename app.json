@@ -50,6 +50,14 @@
         {
           "backgroundColor": "#0F172A"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.5"
+          }
+        }
       ]
     ],
     "scheme": "travel-translator",
