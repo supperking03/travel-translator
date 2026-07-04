@@ -102,6 +102,11 @@ export default function OnboardingScreen() {
     setAppLanguage(initialLang);
   }, [initialLang, setAppLanguage]);
 
+  // Onboarding funnel: fires for step 0 on mount and again when the user advances.
+  useEffect(() => {
+    track('onboarding_step_viewed', { step, name: step === 0 ? 'language' : 'features' });
+  }, [step]);
+
   const handleLangSelect = useCallback((code: string) => {
     setNativeLang(code);
     setAppLanguage(code); // immediately switches UI language

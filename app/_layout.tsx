@@ -1,11 +1,12 @@
 import 'react-native-gesture-handler';
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useDSColors, useDSIsDark } from '@/constants/designSystem';
-import { track } from '@/utils/analytics';
+import { track, flushSessionSummary } from '@/utils/analytics';
 import { useOtaUpdates } from '@/hooks/useOtaUpdates';
 
 export default function RootLayout() {
@@ -17,6 +18,14 @@ export default function RootLayout() {
 
   // Check EAS Update for a newer JS bundle on launch (silent, prod-only).
   useOtaUpdates();
+
+  // Emit a session_summary each time the app leaves the foreground.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'background' || next === 'inactive') flushSessionSummary();
+    });
+    return () => sub.remove();
+  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

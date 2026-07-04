@@ -60,6 +60,10 @@ interface TranslatorState {
   localReviewSubmitted: boolean;
   setLocalReviewSubmitted: (v: boolean) => void;
 
+  // Features the user has ever used (for feature_first_used analytics) — persisted
+  usedFeatures: string[];
+  markFeatureUsed: (feature: string) => boolean; // returns true only the first time
+
   // Onboarding
   onboardingComplete: boolean;
   setOnboardingComplete: (v: boolean) => void;
@@ -132,6 +136,13 @@ export const useStore = create<TranslatorState>()(
       localReviewSubmitted: false,
       setLocalReviewSubmitted: (v) => set({ localReviewSubmitted: v }),
 
+      usedFeatures: [],
+      markFeatureUsed: (feature) => {
+        if (get().usedFeatures.includes(feature)) return false;
+        set((state) => ({ usedFeatures: [...state.usedFeatures, feature] }));
+        return true;
+      },
+
       onboardingComplete: false,
       setOnboardingComplete: (v) => set({ onboardingComplete: v }),
 
@@ -154,6 +165,7 @@ export const useStore = create<TranslatorState>()(
         successfulTranslations: state.successfulTranslations,
         reviewPromptCount:      state.reviewPromptCount,
         localReviewSubmitted:   state.localReviewSubmitted,
+        usedFeatures:           state.usedFeatures,
       }),
     }
   )

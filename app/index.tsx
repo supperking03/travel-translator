@@ -38,7 +38,7 @@ import { getLanguageByCode } from '@/constants/languages';
 import { useI18n } from '@/i18n/useI18n';
 import { recognizeTextBlocksFromImage, TextBlock } from '@/utils/imageTextRecognition';
 import { maybeAskForReview } from '@/utils/reviewPrompt';
-import { track, trackScreen } from '@/utils/analytics';
+import { track, trackScreen, bumpSession, trackFeatureFirstUse } from '@/utils/analytics';
 import { stripWhisperNoise } from '@/constants/model';
 import { extractTextFromFile, isSupportedTextImportFile } from '@/utils/importFileText';
 
@@ -740,9 +740,21 @@ export default function TranslatorScreen() {
         targetLang: targetLangRef.current,
         chars: text.length,
       });
+      bumpSession('translations');
+      bumpSession(mode === 'voice' ? 'voice_translations' : 'text_translations');
+      bumpSession('chars', text.length);
+      trackFeatureFirstUse(mode === 'voice' ? 'voice_input' : 'text_translate');
       // Happy path: let the result land, then maybe ask for a review.
       setTimeout(() => { void maybeAskForReview(); }, 800);
     } catch (err) {
+      bumpSession('failures');
+      track('translate_failed', {
+        mode,
+        sourceLang: sourceLangRef.current,
+        targetLang: targetLangRef.current,
+        reason: err instanceof MlkitOfflineError ? 'offline' : 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
       if (err instanceof MlkitOfflineError) {
         Alert.alert(
           t.mOfflineTitle ?? 'No Internet',
@@ -887,10 +899,27 @@ export default function TranslatorScreen() {
         targetLang,
       });
       setImagePhase('done');
-      track('translate', { engine: 'mlkit', mode: 'image', targetLang, blocks: rawBlocks.length });
+      track('translate', {
+        engine: 'mlkit',
+        mode: 'image',
+        targetLang,
+        blocks: rawBlocks.length,
+        chars: combinedSource.length,
+      });
+      bumpSession('translations');
+      bumpSession('image_translations');
+      bumpSession('chars', combinedSource.length);
+      trackFeatureFirstUse('image_translate');
       // Happy path: a full image was just translated — let it land, then maybe ask for a review.
       setTimeout(() => { void maybeAskForReview(); }, 800);
     } catch (err) {
+      bumpSession('failures');
+      track('translate_failed', {
+        mode: 'image',
+        targetLang,
+        reason: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
       setImageError(err instanceof Error ? err.message : 'Image translation failed');
       setImagePhase('error');
     }
@@ -1097,7 +1126,9 @@ export default function TranslatorScreen() {
       } catch { /* best-effort — fall through and speak anyway */ }
     }
     setIsSpeaking(true);
-    track('tts_speak', { lang: langCode });
+    track('tts_speak', { lang: langCode, source_mode: resultMode, chars: textToSpeak.length });
+    bumpSession('tts');
+    trackFeatureFirstUse('tts');
     Speech.speak(textToSpeak, {
       language: lang.ttsLocale,
       rate: 0.9,
@@ -1105,7 +1136,7 @@ export default function TranslatorScreen() {
       onError:   () => setIsSpeaking(false),
       onStopped: () => setIsSpeaking(false),
     });
-  }, [isSpeaking, t]);
+  }, [isSpeaking, t, resultMode]);
 
   const handleSpeak = useCallback(() => {
     void speakText(translatedText, targetLang);

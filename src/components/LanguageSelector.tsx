@@ -17,7 +17,7 @@ import { isMlkitSupported } from '@/constants/mlkitLanguages';
 import { getDownloadedPackTags, codeToTag, downloadLanguagePack } from '@/utils/mlkitPacks';
 import { DS, useDSColors, useDSIsDark } from '@/constants/designSystem';
 import { useI18n } from '@/i18n/useI18n';
-import { track } from '@/utils/analytics';
+import { track, bumpSession } from '@/utils/analytics';
 
 interface Props {
   selectedCode: string;
@@ -58,6 +58,7 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
         const ok = await downloadLanguagePack(code);
         if (!ok) throw new Error('download failed');
         setDownloadedTags(await getDownloadedPackTags());
+        bumpSession('pack_downloads');
         return true;
       } catch {
         Alert.alert(
