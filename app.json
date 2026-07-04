@@ -2,7 +2,7 @@
   "expo": {
     "name": "Nomad Translator",
     "slug": "travel-translator",
-    "version": "1.5.0",
+    "version": "1.5.1",
     "runtimeVersion": "1.5.0",
     "updates": {
       "enabled": true,
@@ -22,7 +22,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.theluxenomad.freeofflinetranslator",
-      "buildNumber": "13",
+      "buildNumber": "14",
       "appStoreUrl": "https://apps.apple.com/app/id6766855589?action=write-review",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Used for voice input translation",
