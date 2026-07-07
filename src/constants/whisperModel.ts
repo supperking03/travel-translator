@@ -17,3 +17,13 @@ const WHISPER_LANG_MAP: Record<string, string> = {
 
 export const getWhisperLang = (langCode: string): string =>
   WHISPER_LANG_MAP[langCode] ?? langCode;
+
+// Strip Whisper non-speech annotations ([music], (laughs), ♪…♪) before translating.
+export function stripWhisperNoise(text: string): string {
+  return text
+    .replace(/\[[^\]]*\]/g, '')
+    .replace(/\([^)]{1,40}\)/g, '')
+    .replace(/♪[^♪]*♪?/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}

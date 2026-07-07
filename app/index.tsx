@@ -39,7 +39,7 @@ import { useI18n } from '@/i18n/useI18n';
 import { recognizeTextBlocksFromImage, TextBlock } from '@/utils/imageTextRecognition';
 import { maybeAskForReview } from '@/utils/reviewPrompt';
 import { track, trackScreen, bumpSession, trackFeatureFirstUse } from '@/utils/analytics';
-import { stripWhisperNoise } from '@/constants/model';
+import { stripWhisperNoise } from '@/constants/whisperModel';
 import { extractTextFromFile, isSupportedTextImportFile } from '@/utils/importFileText';
 
 type TranslatedBlock = TextBlock & { translated: string; isPending: boolean };
