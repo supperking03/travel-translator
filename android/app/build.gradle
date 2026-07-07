@@ -92,8 +92,8 @@ android {
         applicationId 'com.theluxenomad.freeofflinetranslator'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.4.2"
+        versionCode 14
+        versionName "1.5.1"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
