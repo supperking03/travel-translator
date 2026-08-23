@@ -549,6 +549,12 @@ export default function TranslatorScreen() {
   // session auto-restarts so the input doesn't blank out between sessions.
   const cabinTranscriptRef = useRef('');
 
+  // Bumped whenever the transcript is thrown away (clear, manual edit, new dictation).
+  // A whisper session that is already tearing down still delivers its final onDone a beat
+  // later; without this, that late callback writes the old transcript straight back into
+  // an input the user just emptied.
+  const cabinRunIdRef = useRef(0);
+
   // Keep refs in sync so callbacks don't go stale
   const sourceLangRef = useRef(sourceLang);
   const targetLangRef = useRef(targetLang);
@@ -589,9 +595,12 @@ export default function TranslatorScreen() {
     return () => loop.stop();
   }, [isCabinMode, cabinPulseAnim]);
 
-  // Reset the running transcript so the next cabin session starts clean.
+  // Reset the running transcript so the next cabin session starts clean. Bumping the run
+  // id here is what makes the reset stick: any session still winding down is now stale and
+  // its callbacks are dropped instead of re-filling the input.
   const resetCabinState = useCallback(() => {
     cabinTranscriptRef.current = '';
+    cabinRunIdRef.current += 1;
   }, []);
 
   const setCabinTranscriptText = useCallback((text: string) => {
@@ -623,10 +632,14 @@ export default function TranslatorScreen() {
   // One whisper session (~30s). Restarts automatically while cabin mode is still on.
   // Pure speech-to-text: partials/finals just stream into the input box — no translation.
   const startCabinSession = useCallback(async () => {
+    // Captured for the lifetime of this session — including the 30s auto-restarts, which
+    // re-enter here and pick the id up again. Both callbacks below bail once it goes stale.
+    const runId = cabinRunIdRef.current;
     try {
       await whisper.startListening(
         cabinLangCodeRef.current,
         (partial) => {
+          if (runId !== cabinRunIdRef.current) return;
           if (isStoppingCabinForTranslateRef.current) return;
           const clean = stripWhisperNoise(partial);
           // Skip empty partials — they'd blank out what the user already dictated.
@@ -637,6 +650,9 @@ export default function TranslatorScreen() {
           setCabinTranscriptText(base ? `${base} ${clean}` : clean);
         },
         (final) => {
+          // The transcript was cleared (or replaced) while this session was stopping —
+          // drop the result and don't auto-restart.
+          if (runId !== cabinRunIdRef.current) return;
           const clean = stripWhisperNoise(final).trim();
           // Commit this session's final transcript to the running base.
           if (clean) {
@@ -752,13 +768,17 @@ export default function TranslatorScreen() {
         mode,
         sourceLang: sourceLangRef.current,
         targetLang: targetLangRef.current,
-        reason: err instanceof MlkitOfflineError ? 'offline' : 'error',
+        reason: err instanceof MlkitOfflineError ? err.reason : 'error',
         message: err instanceof Error ? err.message : String(err),
       });
       if (err instanceof MlkitOfflineError) {
+        // 'offline' = nothing was attempted; 'download_failed' = we were online and it
+        // still didn't come down. Showing "No Internet" for the second case is what made
+        // users think the app was lying to them.
+        const failed = err.reason === 'download_failed';
         Alert.alert(
-          t.mOfflineTitle ?? 'No Internet',
-          (t.mOfflineBody ?? err.message).replace('{pack}', err.pairLabel),
+          (failed ? t.mPackFailedTitle : t.mOfflineTitle) ?? 'No Internet',
+          ((failed ? t.mPackFailedBody : t.mOfflineBody) ?? err.message).replace('{pack}', err.pairLabel),
         );
       } else {
         Alert.alert('Translation Error', err instanceof Error ? err.message : 'Translation failed');
@@ -811,9 +831,13 @@ export default function TranslatorScreen() {
 
   const handleSourceTextChange = useCallback((text: string) => {
     if (isCabinModeRef.current) void stopCabinMode();
+    // Unconditional, not gated on isCabinModeRef: by the time the user backspaces, cabin
+    // mode may already read as off while the session is still delivering its final
+    // transcript. Without this, that callback overwrites what they just typed.
+    resetCabinState();
     if (imagePreviewUri) clearImagePreview();
     setSourceText(text);
-  }, [clearImagePreview, imagePreviewUri, setSourceText, stopCabinMode]);
+  }, [clearImagePreview, imagePreviewUri, resetCabinState, setSourceText, stopCabinMode]);
 
   const processImageTranslation = useCallback(async (uri: string) => {
     if (!isReady) {

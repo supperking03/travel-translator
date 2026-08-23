@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LANGUAGES, Language, getLanguageByCode } from '@/constants/languages';
 import { isMlkitSupported } from '@/constants/mlkitLanguages';
-import { getDownloadedPackTags, codeToTag, downloadLanguagePack } from '@/utils/mlkitPacks';
+import { getDownloadedPackTags, codeToTag, downloadLanguagePack, PackOfflineError } from '@/utils/mlkitPacks';
 import { DS, useDSColors, useDSIsDark } from '@/constants/designSystem';
 import { useI18n } from '@/i18n/useI18n';
 import { track, bumpSession } from '@/utils/analytics';
@@ -55,15 +55,22 @@ export function LanguageSelector({ selectedCode, onSelect, label, subtle }: Prop
       setDownloadingCode(code);
       track('mlkit_pack_manual_download', { code });
       try {
-        const ok = await downloadLanguagePack(code);
-        if (!ok) throw new Error('download failed');
+        await downloadLanguagePack(code);
         setDownloadedTags(await getDownloadedPackTags());
         bumpSession('pack_downloads');
+        track('mlkit_pack_manual_download_success', { code });
         return true;
-      } catch {
+      } catch (e) {
+        // Offline is a different story from "you were online and it still failed" —
+        // telling someone with working wifi that they have no internet is what pushed
+        // them to retry over and over instead of just tapping download again.
+        const offline = e instanceof PackOfflineError;
+        track('mlkit_pack_manual_download_failed', { code, reason: offline ? 'offline' : 'error' });
         Alert.alert(
-          t.mOfflineTitle ?? 'No Internet',
-          t.rvError ?? 'Please connect to the internet and try again.',
+          (offline ? t.mOfflineTitle : t.mPackFailedTitle) ?? 'No Internet',
+          ((offline ? t.mOfflineBody : t.mPackFailedBody)
+            ?? 'Please connect to the internet and try again.'
+          ).replace('{pack}', getLanguageByCode(code)?.name ?? code),
         );
         return false;
       } finally {

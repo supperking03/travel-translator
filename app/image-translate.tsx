@@ -175,8 +175,9 @@ export default function ImageTranslateScreen() {
     } catch (err) {
       if (!cancelled.current) {
         if (err instanceof MlkitOfflineError) {
-          setErrorTitle(t.mOfflineTitle ?? 'No Internet');
-          setError((t.mOfflineBody ?? err.message).replace('{pack}', err.pairLabel));
+          const failed = err.reason === 'download_failed';
+          setErrorTitle((failed ? t.mPackFailedTitle : t.mOfflineTitle) ?? 'No Internet');
+          setError(((failed ? t.mPackFailedBody : t.mOfflineBody) ?? err.message).replace('{pack}', err.pairLabel));
         } else {
           setErrorTitle('Failed');
           setError(err instanceof Error ? err.message : 'Something went wrong');

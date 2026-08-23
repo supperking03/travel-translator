@@ -2,6 +2,7 @@ import FastTranslator from 'fast-mlkit-translate-text';
 import type { Languages } from 'fast-mlkit-translate-text';
 import { useStore } from '@/store/useStore';
 import { toMlkitLanguage } from '@/constants/mlkitLanguages';
+import { ensurePacks, missingPacks, PackDownloadError, PackOfflineError } from '@/utils/mlkitPacks';
 import { track } from '@/utils/analytics';
 
 export class MlkitUnsupportedLanguageError extends Error {
@@ -11,33 +12,34 @@ export class MlkitUnsupportedLanguageError extends Error {
   }
 }
 
+/**
+ * A language pack is missing and we could not get it. `reason` separates the two cases the
+ * UI has to word very differently:
+ *   'offline'         — no connection, nothing was attempted. Retrying now won't help.
+ *   'download_failed' — we were online and the download still failed or stalled out.
+ */
 export class MlkitOfflineError extends Error {
-  constructor(public pairLabel: string) {
+  constructor(
+    public pairLabel: string,
+    public reason: 'offline' | 'download_failed' = 'offline',
+  ) {
     super(
-      `The "${pairLabel}" language pack needs a one-time download (~30 MB). ` +
-      `Connect to the internet just once to download it — after that you can translate ` +
-      `this pair fully offline, anytime.`,
+      reason === 'offline'
+        ? `The "${pairLabel}" language pack needs a one-time download (~30 MB). ` +
+          `Connect to the internet just once to download it — after that you can translate ` +
+          `this pair fully offline, anytime.`
+        : `The "${pairLabel}" language pack (~30 MB) couldn't finish downloading. ` +
+          `Check your connection and try again — the part already downloaded is kept.`,
     );
     this.name = 'MlkitOfflineError';
   }
 }
 
-// Quick connectivity probe. ML Kit's downloadIfNeeded blocks indefinitely when the device
-// is offline and the pack is missing (it waits for a network that never comes), so we check
-// first and fail fast. Endpoint returns HTTP 204 instantly when online.
-async function isOnline(): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
-    await fetch('https://clients3.google.com/generate_204', { signal: controller.signal });
-    clearTimeout(timer);
-    return true;
-  } catch {
-    return false;
-  }
-}
+// Backstop for translate() itself. The packs are on device by the time we call it, so this
+// only ever fires if ML Kit decides it still needs something from the network (it pivots
+// non-English pairs through English) — generous enough for that, short of forever.
+const TRANSLATE_TIMEOUT_MS = 3 * 60 * 1000;
 
-// Backstop so a stalled download can never spin the loading UI forever.
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('timeout')), ms);
@@ -53,63 +55,58 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 // re-check downloads) when the language pair actually changes.
 let preparedKey: string | null = null;
 
+/**
+ * Get both packs on device, then point the native translator at the pair.
+ *
+ * Note what is deliberately NOT happening here: `prepare()` is called with
+ * downloadIfNeeded false. On both platforms prepare() only constructs the translator and
+ * resolves immediately — the flag makes the *next* translate() call do the download,
+ * untimed and with the loading UI already dismissed. We download up front instead.
+ */
 async function preparePair(source: Languages, target: Languages): Promise<void> {
   const key = `${source}>${target}`;
   if (key === preparedKey) return;
 
   const store = useStore.getState();
-
-  // Do we already have both packs on device? If so, prepare() is instant and offline.
-  let needsDownload = true;
-  try {
-    const [srcOk, tgtOk] = await Promise.all([
-      FastTranslator.isLanguageDownloaded(source),
-      FastTranslator.isLanguageDownloaded(target),
-    ]);
-    needsDownload = !srcOk || !tgtOk;
-  } catch {
-    needsDownload = true; // if we can't tell, assume a download may be needed
-  }
-
   const label = `${source} → ${target}`;
 
-  let startedAt = 0;
-  if (needsDownload) {
-    // Offline + pack missing → fail fast instead of letting ML Kit hang on the download.
-    if (!(await isOnline())) {
-      track('mlkit_offline_blocked', { pair: label });
-      throw new MlkitOfflineError(label);
-    }
-    store.setMlkitPack('downloading', label);
-    startedAt = Date.now();
-    track('mlkit_pack_download_start', { pair: label });
-  }
+  const missing = await missingPacks([source, target]);
 
-  try {
-    await withTimeout(
-      FastTranslator.prepare({ source, target, downloadIfNeeded: true }),
-      needsDownload ? 90000 : 15000,
-    );
-    preparedKey = key;
-    if (needsDownload) {
-      track('mlkit_pack_download_success', { pair: label, ms: Date.now() - startedAt });
-    }
-  } catch {
-    // Download stalled or dropped mid-way — treat as an offline/connection failure.
-    if (needsDownload) track('mlkit_offline_blocked', { pair: label });
-    throw new MlkitOfflineError(label);
-  } finally {
-    if (needsDownload) {
-      // Keep the "Downloading…" indicator on screen long enough to read, even when the
-      // pack turns out to be cached / downloads instantly (otherwise it just flickers).
-      const elapsed = Date.now() - startedAt;
-      const MIN_VISIBLE_MS = 900;
-      if (elapsed < MIN_VISIBLE_MS) {
-        await new Promise((r) => setTimeout(r, MIN_VISIBLE_MS - elapsed));
+  if (missing.length > 0) {
+    const startedAt = Date.now();
+    track('mlkit_pack_download_start', { pair: label, packs: missing.join(',') });
+    store.setMlkitPack('downloading', missing[0]);
+
+    try {
+      await ensurePacks([source, target], ({ name, current, total }) => {
+        // "Vietnamese" on its own when there's only one pack left to fetch, otherwise
+        // "Vietnamese (2/3)" so a multi-minute wait doesn't look like a frozen spinner.
+        store.setMlkitPack('downloading', total > 1 ? `${name} (${current}/${total})` : name);
+      });
+      track('mlkit_pack_download_success', {
+        pair: label,
+        packs: missing.join(','),
+        ms: Date.now() - startedAt,
+      });
+    } catch (e) {
+      if (e instanceof PackOfflineError) {
+        track('mlkit_offline_blocked', { pair: label, packs: missing.join(',') });
+        throw new MlkitOfflineError(label, 'offline');
       }
+      const failed = e instanceof PackDownloadError ? e.pack : label;
+      track('mlkit_pack_download_failed', {
+        pair: label,
+        pack: String(failed),
+        ms: Date.now() - startedAt,
+      });
+      throw new MlkitOfflineError(String(failed), 'download_failed');
+    } finally {
       store.setMlkitPack('idle');
     }
   }
+
+  await FastTranslator.prepare({ source, target, downloadIfNeeded: false });
+  preparedKey = key;
 }
 
 // ML Kit's translate() needs an explicit source. Our text/image pipelines pass 'auto',
@@ -149,7 +146,18 @@ export async function mlkitTranslate(
   if (source === target) return text;
 
   await preparePair(source, target);
-  return FastTranslator.translate(text);
+
+  try {
+    return await withTimeout(FastTranslator.translate(text), TRANSLATE_TIMEOUT_MS);
+  } catch (e) {
+    // The pair was prepared, so a failure here means ML Kit wanted the network after all
+    // (pivot model) and didn't get it. Re-prepare next time in case its state is stale.
+    preparedKey = null;
+    if (e instanceof Error && e.message === 'timeout') {
+      throw new MlkitOfflineError(`${source} → ${target}`, 'download_failed');
+    }
+    throw e;
+  }
 }
 
 /**
